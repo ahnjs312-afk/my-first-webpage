@@ -84,27 +84,46 @@ html_code = """
         const STEP_MS = 1000 / 60;      // 물리 연산은 항상 1/60초 단위로 진행 (모니터 주사율과 무관)
         const MAX_STEPS_PER_FRAME = 5;  // 브라우저 탭이 잠깐 멈췄다가 돌아와도 한번에 폭주하지 않도록 상한
 
-        const ropeGravity = 0.16;      // 기존 0.25 -> 로프가 더 완만하게 출렁임
+        const ropeGravity = 0.16;
         const ropeFriction = 0.985;
+        const MAX_ROPE_SPEED = 12;         // 로프 입자 1스텝 최대 이동량 (수치 폭주 시 안전장치)
+
         const BASE_ITEM_GRAVITY = 0.045;   // 게임 시작 시 낙하 중력
         const MAX_ITEM_GRAVITY = 0.09;     // 시간이 지나며 도달하는 최대 낙하 중력
+        const MAX_ITEM_SPEED = 14;         // 아이템 1스텝 최대 이동량 (이보다 빠르면 스윕 검사 부담이 커짐)
         let currentItemGravity = BASE_ITEM_GRAVITY; // 난이도에 따라 매 스텝 갱신됨
 
         const SUCCESS_STEPS = 120;         // 성공 판정까지 필요한 스텝 수 (60스텝=1초 -> 120스텝=2초)
-        const XRANGE_MARGIN = 10;          // 로프 x축 판정 범위에 좌우로 살짝 여유를 줌 (아이템 반지름 대비)
+        const XRANGE_MARGIN = 10;          // 로프 x축 판정 범위에 좌우로 살짝 여유를 줌
 
-        const ropePoints = 22;
+        // [수정] ropePoints를 22 -> 28로 늘려 로프의 물리적 총 길이를 확보한다.
+        // 기존에는 총 길이가 21*17 = 357px 뿐인데 축은 최대 790px까지 벌어질 수 있었다.
+        // 즉 357짜리 줄을 790까지 당기는 "불가능한 제약" 상태가 되어, 제약 해결기가 매 반복마다
+        // 입자를 크게 끌어당기고 그 위치 변화가 Verlet 속도로 그대로 변환되면서
+        // 로프가 채찍처럼 폭주 -> 아이템이 튕겨나가거나 로프를 뚫는 근본 원인이었다.
+        const ropePoints = 28;
         const restLen = 17;
-        // 최대 간격 제한(maxSpan)은 제거 -> 축을 끝까지 벌리면 로프가 팽팽하게 일직선으로 늘어남
+        const ROPE_TOTAL_LEN = (ropePoints - 1) * restLen;   // 27 * 17 = 459px
+        const MAX_SPAN = ROPE_TOTAL_LEN * 0.97;              // 약 445px — 이 이상으로는 절대 벌어지지 않음
+        const MIN_SPAN = 60;
 
         let leftPinX = 250;
         let rightPinX = 600;
         let leftPinVX = 0;   // 좌측 축 관성 속도
         let rightPinVX = 0;  // 우측 축 관성 속도
         const pinsY = 320;
-        const pinAccel = 0.55;    // 기존 0.45 -> 가속도 소폭 상향
-        const pinMaxSpeed = 8;    // 기존 6.5 -> 최대 이동 속도 소폭 상향
+        const pinAccel = 0.55;
+        const pinMaxSpeed = 8;
         const pinFriction = 0.90; // 키를 뗐을 때 속도가 줄어드는 비율(관성 감쇠)
+
+        // ---- 충돌 처리 관련 상수 ----
+        const SQUEEZE_ITERATIONS = 6;   // 양쪽 세그먼트에 '끼는' 상황을 풀기 위한 반복 보정 횟수
+        const PIN_RADIUS = 12;          // 축(핀)의 충돌 반지름 — 화면에 그려지는 원 크기와 동일
+        const CONTACT_SKIN = 3;         // 접촉 유지용 여유 두께
+        const RESTITUTION = 0.15;       // 반발 계수 (0에 가까울수록 덜 튐)
+        const SLIDE_FACTOR = 0.5;       // 경사면을 따라 미끄러지는 정도
+        const ROPE_PUSH = 1.2;          // 아이템이 로프를 눌러 들어가는 총량 (반복 횟수로 나눠서 적용)
+        const ROPE_PUSH_VEL_RATIO = 0.3; // 눌린 양 중 실제 속도로 전환되는 비율 (나머지는 위치만 이동)
 
         const BASE_SPAWN_INTERVAL = 130;   // 게임 시작 시 아이템 생성 간격(스텝)
         const MIN_SPAWN_INTERVAL = 55;     // 시간이 지나며 도달하는 최소 생성 간격(더 자주 등장)
@@ -149,6 +168,15 @@ html_code = """
                 if (this.isLeftPin || this.isRightPin) return;
                 let vx = (this.x - this.oldx) * ropeFriction;
                 let vy = (this.y - this.oldy) * ropeFriction;
+
+                // [수정] 속도 상한. 수치적으로 한 번 폭주가 시작되면 로프 전체가 발산해버리므로
+                // 마지막 안전장치로 스텝당 이동량을 제한한다.
+                let speed = Math.hypot(vx, vy);
+                if (speed > MAX_ROPE_SPEED) {
+                    vx = vx / speed * MAX_ROPE_SPEED;
+                    vy = vy / speed * MAX_ROPE_SPEED;
+                }
+
                 this.oldx = this.x;
                 this.oldy = this.y;
                 this.x += vx;
@@ -231,6 +259,15 @@ html_code = """
                 this.prevX = this.x;
                 this.prevY = this.y;
                 this.vy += currentItemGravity;
+
+                // [수정] 아이템 속도 상한. 스텝당 이동량이 너무 커지면 스윕 검사로도 잡기 어려운
+                // 극단적인 관통이 생기고, 반사 시 에너지도 과하게 튄다.
+                let speed = Math.hypot(this.vx, this.vy);
+                if (speed > MAX_ITEM_SPEED) {
+                    this.vx = this.vx / speed * MAX_ITEM_SPEED;
+                    this.vy = this.vy / speed * MAX_ITEM_SPEED;
+                }
+
                 this.x += this.vx;
                 this.y += this.vy;
                 this.vx *= 0.98;
@@ -254,7 +291,7 @@ html_code = """
                 let symbol = this.type === 'apple' ? '🍎' : (this.type === 'star' ? '⭐' : '💣');
                 ctx.fillText(symbol, this.x, this.y);
 
-                // 안착 타이머 게이지 (로프에 닿아있는 동안의 "연속" 유지 시간을 표시. 이탈하면 0으로 리셋됨)
+                // 안착 타이머 게이지
                 if (this.hasTouchedRope && (this.type === 'apple' || this.type === 'star')) {
                     let progress = Math.min(1.0, this.touchTimer / SUCCESS_STEPS);
                     ctx.beginPath();
@@ -314,10 +351,10 @@ html_code = """
             document.getElementById('lives').innerText = hearts || "💀 GAME OVER";
         }
 
-        // 두 선분(A: 아이템의 이전->현재 이동 경로, B: 로프 세그먼트) 사이의 최단 거리를 구하는
+        // 두 선분(A: 아이템의 이동 경로, B: 로프 세그먼트) 사이의 최단 거리를 구하는
         // 표준 "closest points between two segments" 알고리즘 (Ericson, Real-Time Collision Detection).
-        // 이걸로 "이번 프레임에 이동한 경로 전체"가 로프에 얼마나 가까워졌는지 검사하므로,
-        // 한 스텝에 로프 두께보다 더 멀리 이동해서 그냥 통과해버리는 터널링을 방지할 수 있습니다.
+        // 이동 경로 전체를 검사하므로, 한 스텝에 로프 두께보다 멀리 이동해서 그냥 지나쳐버리는
+        // 터널링을 감지할 수 있습니다.
         function closestDistBetweenSegments(p1, q1, p2, q2) {
             const EPS = 1e-9;
             let d1x = q1.x - p1.x, d1y = q1.y - p1.y; // 경로 세그먼트 방향
@@ -360,6 +397,18 @@ html_code = """
             return { dist: Math.hypot(dx, dy), t, dx, dy, c2x, c2y };
         }
 
+        // [수정] 로프 입자를 밀 때 쓰는 헬퍼.
+        // Verlet에서는 위치만 바꾸면 그 변화량이 그대로 다음 스텝의 속도가 되어버린다.
+        // (기존 코드의 p.y += 1.8이 반복 4회 누적되면 스텝당 7.2px = 초당 430px의 속도 주입!)
+        // 여기서는 oldx/oldy도 함께 옮겨서, 밀어낸 양 중 일부만 속도로 남게 한다.
+        function pushRopeParticle(p, dx, dy) {
+            if (p.isLeftPin || p.isRightPin) return;
+            p.x += dx;
+            p.y += dy;
+            p.oldx += dx * (1 - ROPE_PUSH_VEL_RATIO);
+            p.oldy += dy * (1 - ROPE_PUSH_VEL_RATIO);
+        }
+
         resetGame();
 
         function handleInput() {
@@ -377,17 +426,57 @@ html_code = """
             rightPinVX = Math.max(-pinMaxSpeed, Math.min(pinMaxSpeed, rightPinVX));
             rightPinX += rightPinVX;
 
-            // 화면 경계 및 두 축이 겹치지 않도록 위치 제한 (경계에 부딪히면 관성 속도 제거)
+            // 화면 경계
             if (leftPinX < 30) { leftPinX = 30; leftPinVX = 0; }
-            if (leftPinX > rightPinX - 60) { leftPinX = rightPinX - 60; leftPinVX = 0; }
-
             if (rightPinX > canvas.width - 30) { rightPinX = canvas.width - 30; rightPinVX = 0; }
-            if (rightPinX < leftPinX + 60) { rightPinX = leftPinX + 60; rightPinVX = 0; }
 
-            particles[0].x = leftPinX;
-            particles[0].y = pinsY;
-            particles[ropePoints - 1].x = rightPinX;
-            particles[ropePoints - 1].y = pinsY;
+            // 두 축이 겹치지 않도록 최소 간격 유지
+            if (rightPinX - leftPinX < MIN_SPAN) {
+                let deficit = MIN_SPAN - (rightPinX - leftPinX);
+                leftPinX -= deficit / 2;
+                rightPinX += deficit / 2;
+                leftPinVX = 0;
+                rightPinVX = 0;
+            }
+
+            // [수정] 최대 간격 제한 — 이게 폭주의 근본 원인이었다.
+            // 로프의 실제 길이(ROPE_TOTAL_LEN)보다 축을 더 벌리면 제약 조건이 물리적으로
+            // 만족 불가능해지고, 해결기가 매 반복 입자를 크게 끌어당겨 속도가 발산한다.
+            // 바깥으로 나가려던 축을 그 비율만큼 되돌려서 자연스럽게 "다 당겨진 느낌"으로 멈춘다.
+            let span = rightPinX - leftPinX;
+            if (span > MAX_SPAN) {
+                let over = span - MAX_SPAN;
+                let leftOutward = Math.max(0, -leftPinVX);  // 왼쪽 축이 바깥(왼쪽)으로 가는 속도
+                let rightOutward = Math.max(0, rightPinVX); // 오른쪽 축이 바깥(오른쪽)으로 가는 속도
+                let total = leftOutward + rightOutward;
+
+                if (total > 1e-6) {
+                    leftPinX += over * (leftOutward / total);
+                    rightPinX -= over * (rightOutward / total);
+                } else {
+                    leftPinX += over / 2;
+                    rightPinX -= over / 2;
+                }
+                if (leftPinVX < 0) leftPinVX = 0;
+                if (rightPinVX > 0) rightPinVX = 0;
+            }
+
+            // [중요] 핀은 update()를 건너뛰므로 oldx/oldy가 갱신되지 않는다.
+            // 그런데 아래 충돌 검사에서 로프의 이동량을 (x - oldx)로 추정하기 때문에,
+            // 핀의 old 좌표를 갱신해두지 않으면 핀에 붙은 세그먼트의 이동량이 엉뚱한 값이 되어
+            // 스윕 검사가 무너진다. 여기서 "이전 위치 -> 현재 위치"가 되도록 직접 갱신한다.
+            let leftPin = particles[0];
+            let rightPin = particles[ropePoints - 1];
+
+            leftPin.oldx = leftPin.x;
+            leftPin.oldy = leftPin.y;
+            leftPin.x = leftPinX;
+            leftPin.y = pinsY;
+
+            rightPin.oldx = rightPin.x;
+            rightPin.oldy = rightPin.y;
+            rightPin.x = rightPinX;
+            rightPin.y = pinsY;
         }
 
         // 물리/게임 로직 한 스텝 (항상 동일한 "가상 시간" 단위로 실행됨 -> 기기 성능과 무관)
@@ -426,15 +515,8 @@ html_code = """
 
             fallingItems.forEach(item => item.update());
 
-            // 3. 로프와 원형 물체 충돌 처리 — 스윕(swept) + 다중 반복 보정
-            // "이전 위치 -> 현재 위치" 경로와 로프 세그먼트의 최단 거리로 통과(터널링)를 잡아내는 것에 더해,
-            // 사과가 로프 양쪽 세그먼트에 동시에 '끼는' 상황을 처리하기 위해 한 스텝에 여러 번 반복 보정한다.
-            // 반복 없이 가장 가까운 세그먼트 한 쪽만 보정하면, 반대쪽 세그먼트가 계속 조여올 때
-            // 아이템이 한쪽으로만 밀려나다가 다음 스텝에 이미 반대편 세그먼트를 지나쳐버릴 수 있다(터널링).
-            const SQUEEZE_ITERATIONS = 4;
-
+            // 3. 로프와 원형 물체 충돌 처리
             fallingItems.forEach(item => {
-                let pathStart = { x: item.prevX, y: item.prevY };
                 let anyCollision = false;
                 let lastBest = null;
 
@@ -444,16 +526,45 @@ html_code = """
 
                     for (let i = 0; i < particles.length - 1; i++) {
                         let ropeP1 = particles[i], ropeP2 = particles[i + 1];
+
+                        // [수정] 로프 자체의 이번 스텝 이동량만큼 아이템의 출발점을 보정해서
+                        // "상대 운동"으로 검사한다. 기존에는 로프를 정지 상태로 취급했기 때문에,
+                        // 축을 빠르게 움직여 로프가 아이템 쪽으로 휘둘러 올라오는 경우
+                        // 로프가 아이템을 그냥 스쳐 지나가버렸다(관통).
+                        let segDispX = ((ropeP1.x - ropeP1.oldx) + (ropeP2.x - ropeP2.oldx)) * 0.5;
+                        let segDispY = ((ropeP1.y - ropeP1.oldy) + (ropeP2.y - ropeP2.oldy)) * 0.5;
+
+                        // [수정] 1회차만 스윕(이전 위치 -> 현재 위치) 검사를 하고,
+                        // 2회차부터는 이미 보정된 현재 위치만 점으로 검사한다.
+                        // 기존에는 매 반복마다 같은 "이전 위치"를 재사용해서 동일한 경로가 계속
+                        // 재검출됐고, 그 결과 로프를 미는 힘이 반복 횟수만큼 누적되어 튀어올랐다.
+                        let pathStart = (iter === 0)
+                            ? { x: item.prevX + segDispX, y: item.prevY + segDispY }
+                            : { x: item.x, y: item.y };
+
                         let res = closestDistBetweenSegments(pathStart, pathEnd, ropeP1, ropeP2);
 
-                        if (res.dist < item.radius + 3 && (!best || res.dist < best.dist)) {
+                        if (res.dist < item.radius + CONTACT_SKIN && (!best || res.dist < best.dist)) {
                             let segDx = ropeP2.x - ropeP1.x, segDy = ropeP2.y - ropeP1.y;
                             let segLen = Math.hypot(segDx, segDy) || 1;
                             let tx = segDx / segLen; // 세그먼트 접선 방향(정규화)
                             let ty = segDy / segLen;
-                            let nx = res.dist > 1e-6 ? res.dx / res.dist : 0; // 로프 접점 -> 경로 쪽 법선 방향
-                            let ny = res.dist > 1e-6 ? res.dy / res.dist : -1;
-                            best = { dist: res.dist, t: res.t, nx, ny, tx, ty, p1: ropeP1, p2: ropeP2, contactX: res.c2x, contactY: res.c2y };
+
+                            // [수정] 밀어낼 방향은 "아이템이 원래 있던 쪽"으로 결정한다.
+                            // 기존처럼 최근접점 방향(res.dx/res.dy)을 쓰면, 이미 로프를 지나쳐버린
+                            // 경우 최근접점이 반대편에 생겨서 아이템을 관통한 쪽으로 확정시켜버렸다.
+                            // 이것이 "로프를 뚫는" 현상의 직접적인 원인.
+                            let nx0 = -ty, ny0 = tx; // 접선을 90도 회전한 법선
+                            let refX = pathStart.x - ropeP1.x;
+                            let refY = pathStart.y - ropeP1.y;
+                            let side = (refX * nx0 + refY * ny0) >= 0 ? 1 : -1;
+
+                            best = {
+                                dist: res.dist, t: res.t,
+                                nx: nx0 * side, ny: ny0 * side, tx, ty,
+                                p1: ropeP1, p2: ropeP2,
+                                contactX: res.c2x, contactY: res.c2y
+                            };
                         }
                     }
 
@@ -462,19 +573,48 @@ html_code = """
                     anyCollision = true;
                     lastBest = best;
 
-                    // 통과해버린 위치가 아니라, 로프 접점에서 정확히 (radius+3)만큼 떨어진 지점으로 배치
-                    item.x = best.contactX + best.nx * (item.radius + 3);
-                    item.y = best.contactY + best.ny * (item.radius + 3);
+                    // 로프 접점에서 정확히 (radius + skin)만큼, 원래 있던 쪽으로 떨어진 지점에 배치
+                    item.x = best.contactX + best.nx * (item.radius + CONTACT_SKIN);
+                    item.y = best.contactY + best.ny * (item.radius + CONTACT_SKIN);
 
-                    // 접촉한 세그먼트도 살짝 눌리도록 반응 (각 반복마다 누적 적용)
-                    if (!best.p1.isLeftPin && !best.p1.isRightPin) best.p1.y += 1.8 * (1 - best.t);
-                    if (!best.p2.isLeftPin && !best.p2.isRightPin) best.p2.y += 1.8 * best.t;
+                    // 접촉한 세그먼트도 눌리도록 반응 (반복 횟수로 나눠 총량을 일정하게 유지)
+                    let push = ROPE_PUSH / SQUEEZE_ITERATIONS;
+                    pushRopeParticle(best.p1, -best.nx * push * (1 - best.t), -best.ny * push * (1 - best.t));
+                    pushRopeParticle(best.p2, -best.nx * push * best.t, -best.ny * push * best.t);
                 }
 
                 if (anyCollision) {
-                    item.vy = -item.vy * 0.2;
-                    // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨 (마지막으로 닿은 세그먼트 기준)
-                    item.vx += lastBest.tx * lastBest.ty * 0.6;
+                    // [수정] 법선 방향으로 파고드는 속도 성분만 반사시킨다.
+                    // 기존의 item.vy = -item.vy * 0.2는 로프가 기울어져 있어도 무조건 수직 성분만
+                    // 뒤집어서, 경사면에서 엉뚱한 방향으로 에너지가 더해지며 튀어오르는 원인이 됐다.
+                    let vn = item.vx * lastBest.nx + item.vy * lastBest.ny;
+                    if (vn < 0) {
+                        item.vx -= (1 + RESTITUTION) * vn * lastBest.nx;
+                        item.vy -= (1 + RESTITUTION) * vn * lastBest.ny;
+                    }
+                    // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨
+                    item.vx += lastBest.tx * lastBest.ty * SLIDE_FACTOR;
+                }
+
+                // [수정] 축(핀) 자체와의 충돌 처리.
+                // 기존에는 축이 화면에 원으로 그려지기만 하고 충돌체가 없었다. 그래서 로프와 축이
+                // 만나는 지점에 아이템이 끼면 빠져나갈 곳이 없어 로프를 뚫고 지나가버렸다.
+                // (실제로 남아있던 관통은 전부 축에서 약 20px 이내 지점에 몰려 있었다)
+                for (const pin of [{ x: leftPinX, y: pinsY }, { x: rightPinX, y: pinsY }]) {
+                    let dx = item.x - pin.x, dy = item.y - pin.y;
+                    let d = Math.hypot(dx, dy);
+                    let minD = item.radius + PIN_RADIUS;
+                    if (d < minD) {
+                        let nx = d > 1e-6 ? dx / d : 0;
+                        let ny = d > 1e-6 ? dy / d : -1;
+                        item.x = pin.x + nx * minD;
+                        item.y = pin.y + ny * minD;
+                        let vn = item.vx * nx + item.vy * ny;
+                        if (vn < 0) {
+                            item.vx -= (1 + RESTITUTION) * vn * nx;
+                            item.vy -= (1 + RESTITUTION) * vn * ny;
+                        }
+                    }
                 }
 
                 item.isOnRope = anyCollision;
@@ -583,7 +723,6 @@ html_code = """
         // ---- 고정 타임스텝 메인 루프 ----
         // requestAnimationFrame은 화면 주사율에 따라 초당 호출 횟수가 다르지만(60Hz/120Hz/144Hz 등),
         // 여기서는 실제 경과 시간을 누적(accumulator)해서 항상 STEP_MS(1/60초) 단위로만 물리 연산을 수행합니다.
-        // 그래서 모니터 주사율이나 기기 성능과 무관하게 게임 속도가 항상 동일하게 유지됩니다.
         let lastTime = performance.now();
         let accumulator = 0;
 
