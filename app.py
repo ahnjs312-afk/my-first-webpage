@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🧺 천 그물망 공 분류 게임 (Side Wall Sorter)")
-st.caption("💡 **마우스 드래그**: 천을 당겨 파란 공(🔵)은 왼쪽 벽, 빨간 공(🔴)은 오른쪽 벽으로 튕겨 내보내세요!")
+st.title("🧺 천 그물망 공 분류 게임 (Side & Floor Sorter)")
+st.caption("💡 **마우스 드래그**: 천을 당겨 파란 공(🔵)은 왼쪽(벽/바닥), 빨간 공(🔴)은 오른쪽(벽/바닥)으로 튕겨 내보내세요!")
 
 html_code = """
 <!DOCTYPE html>
@@ -287,30 +287,25 @@ html_code = """
                     });
                 });
 
-                // 4. 화면 좌/우 벽면 충돌 및 점수 판정
+                // 4. 화면 벽면 및 바닥 수거 판정
                 fallingObjects = fallingObjects.filter(obj => {
-                    // 화면 높이 280px 아래에 위치할 때 좌/우 벽면 도달 인정
                     let isBelowCloth = obj.y > 280;
                     let hitLeftWall = isBelowCloth && (obj.x - obj.radius <= 0);
                     let hitRightWall = isBelowCloth && (obj.x + obj.radius >= canvas.width);
+                    let hitBottomFloor = obj.y + obj.radius >= canvas.height;
 
-                    if (hitLeftWall) {
+                    // 왼쪽 수거 판정 (왼쪽 벽 닿음 또는 화면 좌측 절반 바닥 낙하)
+                    if (hitLeftWall || (hitBottomFloor && obj.x < canvas.width / 2)) {
                         if (obj.colorType === 'blue' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
                         else { lives--; }
                         updateUI();
                         return false;
                     }
 
-                    if (hitRightWall) {
+                    // 오른쪽 수거 판정 (오른쪽 벽 닿음 또는 화면 우측 절반 바닥 낙하)
+                    if (hitRightWall || (hitBottomFloor && obj.x >= canvas.width / 2)) {
                         if (obj.colorType === 'red' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
                         else { lives--; }
-                        updateUI();
-                        return false;
-                    }
-
-                    // 수거함 대신 바닥(아래)으로 낙하한 경우
-                    if (obj.y > canvas.height + 20) {
-                        lives--;
                         updateUI();
                         return false;
                     }
@@ -323,18 +318,29 @@ html_code = """
                 }
             }
 
-            // 5. 시각적 안내 가이드 (화면 좌/우 벽면 패널)
-            ctx.fillStyle = 'rgba(49, 130, 206, 0.08)';
-            ctx.fillRect(0, 0, 40, canvas.height);
-            ctx.fillStyle = 'rgba(229, 62, 62, 0.08)';
-            ctx.fillRect(canvas.width - 40, 0, 40, canvas.height);
+            // 5. 시각적 영역 패널 (좌측 파란색 / 우측 빨간색 수거 존)
+            ctx.fillStyle = 'rgba(49, 130, 206, 0.06)';
+            ctx.fillRect(0, 0, canvas.width / 2, canvas.height);
+            ctx.fillStyle = 'rgba(229, 62, 62, 0.06)';
+            ctx.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
 
-            ctx.font = "bold 16px sans-serif";
+            // 중앙 경계 가이드선
+            ctx.beginPath();
+            ctx.setLineDash([6, 6]);
+            ctx.moveTo(canvas.width / 2, 380);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.strokeStyle = '#cbd5e0';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 하단 수거함 가이드 텍스트
+            ctx.font = "bold 15px sans-serif";
             ctx.textAlign = "center";
             ctx.fillStyle = "#2b6cb0";
-            ctx.fillText("⬅️ 🔵", 20, canvas.height / 2);
+            ctx.fillText("🔵 좌측 영역 (벽 / 바닥)", canvas.width / 4, canvas.height - 15);
             ctx.fillStyle = "#c53030";
-            ctx.fillText("🔴 ➡️", canvas.width - 20, canvas.height / 2);
+            ctx.fillText("🔴 우측 영역 (벽 / 바닥)", (canvas.width / 4) * 3, canvas.height - 15);
 
             // 6. 그리기 - 천 및 고정점
             ctx.beginPath();
