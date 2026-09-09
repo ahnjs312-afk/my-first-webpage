@@ -78,9 +78,15 @@ html_code = """
         canvas.addEventListener('click', () => canvas.focus());
         canvas.focus();
 
-        const ropeGravity = 0.25;
+        // ---- 물리/난이도 상수 ----
+        // 아래 값들은 "초당" 기준으로 튜닝되어 있고, 고정 타임스텝(STEP_MS)으로 매 프레임 동일하게 적용됩니다.
+        // 그래서 60Hz든 144Hz든, 혹은 컴퓨터가 느려서 프레임이 드문드문 나와도 게임 속도는 항상 같습니다.
+        const STEP_MS = 1000 / 60;      // 물리 연산은 항상 1/60초 단위로 진행 (모니터 주사율과 무관)
+        const MAX_STEPS_PER_FRAME = 5;  // 브라우저 탭이 잠깐 멈췄다가 돌아와도 한번에 폭주하지 않도록 상한
+
+        const ropeGravity = 0.16;      // 기존 0.25 -> 로프가 더 완만하게 출렁임
         const ropeFriction = 0.985;
-        const itemGravity = 0.09; // 물체에 적용할 약한 중력
+        const itemGravity = 0.045;     // 기존 0.09 -> 물체가 더 천천히 낙하
 
         const ropePoints = 22;
         const restLen = 17;
@@ -89,7 +95,9 @@ html_code = """
         let leftPinX = 250;
         let rightPinX = 600;
         const pinsY = 320;
-        const moveSpeed = 8;
+        const moveSpeed = 5;           // 기존 8 -> 좌우 축 이동 속도 완화
+
+        const spawnIntervalSteps = 130; // 기존 75 -> 아이템이 더 뜸하게 등장
 
         let particles = [];
         let constraints = [];
@@ -194,7 +202,7 @@ html_code = """
                 this.vy = 0; 
                 this.type = type; // 'apple', 'star', 'bomb'
                 this.radius = type === 'star' ? 15 : 18;
-                this.touchTimer = 0; // 60프레임 = 1초
+                this.touchTimer = 0; // 60스텝 = 1초
                 this.isOnRope = false;
             }
 
@@ -223,7 +231,7 @@ html_code = """
                 let symbol = this.type === 'apple' ? '🍎' : (this.type === 'star' ? '⭐' : '💣');
                 ctx.fillText(symbol, this.x, this.y);
 
-                // 1초(60프레임) 안착 타이머 게이지
+                // 1초(60스텝) 안착 타이머 게이지
                 if (this.isOnRope && (this.type === 'apple' || this.type === 'star')) {
                     let progress = Math.min(1.0, this.touchTimer / 60);
                     ctx.beginPath();
@@ -326,103 +334,106 @@ html_code = """
             particles[ropePoints - 1].y = pinsY;
         }
 
-        function loop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 물리/게임 로직 한 스텝 (항상 동일한 "가상 시간" 단위로 실행됨 -> 기기 성능과 무관)
+        function step() {
+            if (isGameOver) return;
 
-            if (!isGameOver) {
-                handleInput();
+            handleInput();
 
-                // 1. 물체 생성 (화면 전역에서 좌우 쏠림 없이 대칭으로 스폰)
-                spawnTimer++;
-                if (spawnTimer % 75 === 0) {
-                    let spawnX = 60 + Math.random() * (canvas.width - 120);
-                    let rand = Math.random();
-                    let type = rand < 0.6 ? 'apple' : (rand < 0.8 ? 'star' : 'bomb');
-                    fallingItems.push(new FallingItem(spawnX, -20, type));
+            // 1. 물체 생성
+            spawnTimer++;
+            if (spawnTimer % spawnIntervalSteps === 0) {
+                let spawnX = 60 + Math.random() * (canvas.width - 120);
+                let rand = Math.random();
+                let type = rand < 0.6 ? 'apple' : (rand < 0.8 ? 'star' : 'bomb');
+                fallingItems.push(new FallingItem(spawnX, -20, type));
+            }
+
+            // 2. 물리 연산
+            particles.forEach(p => p.update());
+            for (let i = 0; i < 8; i++) {
+                constraints.forEach(c => c.resolve());
+            }
+
+            fallingItems.forEach(item => item.update());
+
+            // 3. 로프와 원형 물체 충돌 처리 (스텝당 가장 가까운 세그먼트 하나만 적용 -> 중복 보정/떨림 방지)
+            fallingItems.forEach(item => {
+                let best = null;
+
+                for (let i = 0; i < particles.length - 1; i++) {
+                    let col = checkSegmentCircleCollision(particles[i], particles[i + 1], item);
+                    if (col && (!best || col.dist < best.dist)) {
+                        best = col;
+                    }
                 }
 
-                // 2. 물리 연산
-                particles.forEach(p => p.update());
-                for (let i = 0; i < 8; i++) {
-                    constraints.forEach(c => c.resolve());
+                if (best) {
+                    let overlap = (item.radius + 3) - best.dist;
+                    item.x += best.nx * overlap;
+                    item.y += best.ny * overlap;
+                    item.vy = -item.vy * 0.2;
+
+                    // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨
+                    item.vx += best.tx * best.ty * 0.6;
+
+                    if (!best.p1.isLeftPin && !best.p1.isRightPin) best.p1.y += 1.8 * (1 - best.t);
+                    if (!best.p2.isLeftPin && !best.p2.isRightPin) best.p2.y += 1.8 * best.t;
                 }
 
-                fallingItems.forEach(item => item.update());
+                item.isOnRope = !!best;
+            });
 
-                // 3. 로프와 원형 물체 충돌 처리 (프레임당 가장 가까운 세그먼트 하나만 적용 -> 중복 보정/떨림 방지)
-                fallingItems.forEach(item => {
-                    let best = null;
-
-                    for (let i = 0; i < particles.length - 1; i++) {
-                        let col = checkSegmentCircleCollision(particles[i], particles[i + 1], item);
-                        if (col && (!best || col.dist < best.dist)) {
-                            best = col;
-                        }
-                    }
-
-                    if (best) {
-                        let overlap = (item.radius + 3) - best.dist;
-                        item.x += best.nx * overlap;
-                        item.y += best.ny * overlap;
-                        item.vy = -item.vy * 0.2;
-
-                        // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨
-                        item.vx += best.tx * best.ty * 0.6;
-
-                        if (!best.p1.isLeftPin && !best.p1.isRightPin) best.p1.y += 1.8 * (1 - best.t);
-                        if (!best.p2.isLeftPin && !best.p2.isRightPin) best.p2.y += 1.8 * best.t;
-                    }
-
-                    item.isOnRope = !!best;
-                });
-
-                // 4. 아이템 1초 안착 / 폭발 / 낙하 판정
-                fallingItems = fallingItems.filter(item => {
-                    if (item.type === 'apple' || item.type === 'star') {
-                        if (item.isOnRope) {
-                            item.touchTimer++;
-                            // 1초 (60프레임) 유지 성공 시 점수 획득
-                            if (item.touchTimer >= 60) {
-                                let color = item.type === 'apple' ? '#22c55e' : '#eab308';
-                                createParticles(item.x, item.y, color, 20);
-                                score += (item.type === 'apple' ? 15 : 35);
-                                updateUI();
-                                return false;
-                            }
-                        } else {
-                            item.touchTimer = Math.max(0, item.touchTimer - 2);
-                        }
-                    } else if (item.type === 'bomb') {
-                        if (item.isOnRope) {
-                            createParticles(item.x, item.y, '#ef4444', 25);
-                            lives--;
+            // 4. 아이템 1초 안착 / 폭발 / 낙하 판정
+            fallingItems = fallingItems.filter(item => {
+                if (item.type === 'apple' || item.type === 'star') {
+                    if (item.isOnRope) {
+                        item.touchTimer++;
+                        // 1초 (60스텝) 유지 성공 시 점수 획득
+                        if (item.touchTimer >= 60) {
+                            let color = item.type === 'apple' ? '#22c55e' : '#eab308';
+                            createParticles(item.x, item.y, color, 20);
+                            score += (item.type === 'apple' ? 15 : 35);
                             updateUI();
                             return false;
                         }
+                    } else {
+                        item.touchTimer = Math.max(0, item.touchTimer - 2);
                     }
-
-                    if (item.y > canvas.height + 30) {
-                        if (item.type === 'apple' || item.type === 'star') {
-                            lives--;
-                            updateUI();
-                        }
+                } else if (item.type === 'bomb') {
+                    if (item.isOnRope) {
+                        createParticles(item.x, item.y, '#ef4444', 25);
+                        lives--;
+                        updateUI();
                         return false;
                     }
+                }
 
-                    return true;
-                });
+                if (item.y > canvas.height + 30) {
+                    if (item.type === 'apple' || item.type === 'star') {
+                        lives--;
+                        updateUI();
+                    }
+                    return false;
+                }
 
-                if (lives <= 0) isGameOver = true;
-            }
+                return true;
+            });
 
-            // 5. 이펙트 파티클
+            if (lives <= 0) isGameOver = true;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 이펙트 파티클
             effects = effects.filter(e => {
                 e.update();
                 e.draw();
                 return e.alpha > 0;
             });
 
-            // 6. 로프 그리기
+            // 로프 그리기
             ctx.beginPath();
             ctx.strokeStyle = '#8b5cf6';
             ctx.lineWidth = 5;
@@ -435,7 +446,7 @@ html_code = """
             }
             ctx.stroke();
 
-            // 7. 좌/우 축 (A/D & 화살표)
+            // 좌/우 축 (A/D & 화살표)
             ctx.fillStyle = '#3182ce';
             ctx.beginPath();
             ctx.arc(leftPinX, pinsY, 12, 0, Math.PI * 2);
@@ -452,7 +463,7 @@ html_code = """
             ctx.fillStyle = '#ffffff';
             ctx.fillText("⬅️➡️", rightPinX, pinsY + 3);
 
-            // 8. 낙하 물체 그리기
+            // 낙하 물체 그리기
             fallingItems.forEach(item => item.draw());
 
             // Game Over
@@ -465,11 +476,38 @@ html_code = """
                 ctx.fillStyle = "#4a5568";
                 ctx.fillText("상단의 [게임 리셋] 버튼을 눌러 다시 시작하세요!", canvas.width / 2, 270);
             }
+        }
 
+        // ---- 고정 타임스텝 메인 루프 ----
+        // requestAnimationFrame은 화면 주사율에 따라 초당 호출 횟수가 다르지만(60Hz/120Hz/144Hz 등),
+        // 여기서는 실제 경과 시간을 누적(accumulator)해서 항상 STEP_MS(1/60초) 단위로만 물리 연산을 수행합니다.
+        // 그래서 모니터 주사율이나 기기 성능과 무관하게 게임 속도가 항상 동일하게 유지됩니다.
+        let lastTime = performance.now();
+        let accumulator = 0;
+
+        function loop(now) {
+            let delta = now - lastTime;
+            lastTime = now;
+
+            // 탭 전환 등으로 delta가 비정상적으로 커지는 경우 대비 (스파이럴 오브 데스 방지)
+            if (delta > STEP_MS * MAX_STEPS_PER_FRAME) {
+                delta = STEP_MS * MAX_STEPS_PER_FRAME;
+            }
+
+            accumulator += delta;
+
+            let steps = 0;
+            while (accumulator >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
+                step();
+                accumulator -= STEP_MS;
+                steps++;
+            }
+
+            draw();
             requestAnimationFrame(loop);
         }
 
-        loop();
+        requestAnimationFrame(loop);
     </script>
 </body>
 </html>
