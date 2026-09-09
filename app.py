@@ -90,7 +90,8 @@ html_code = """
         const MAX_ITEM_GRAVITY = 0.09;     // 시간이 지나며 도달하는 최대 낙하 중력
         let currentItemGravity = BASE_ITEM_GRAVITY; // 난이도에 따라 매 스텝 갱신됨
 
-        const SUCCESS_STEPS = 120;         // 성공 판정까지 필요한 스텝 수 (60스텝=1초 -> 120스텝=2초, 로프에서 이탈하면 리셋됨)
+        const SUCCESS_STEPS = 120;         // 성공 판정까지 필요한 스텝 수 (60스텝=1초 -> 120스텝=2초, 로프에서 완전히 이탈하면 리셋됨)
+        const BOUNCE_GRACE_STEPS = 8;      // 로프에 미세하게 튕겨서 순간적으로 떨어져도(이 스텝 이내) 봐주는 유예 시간 (약 0.13초)
 
         const ropePoints = 22;
         const restLen = 17;
@@ -221,6 +222,7 @@ html_code = """
                 this.touchTimer = 0; // 로프 위에 연속으로 머문 스텝 수 (SUCCESS_STEPS = 2초)
                 this.isOnRope = false;
                 this.hasTouchedRope = false; // 한 번이라도 닿았는지 여부 (게이지 표시용)
+                this.offRopeStreak = 0; // 로프에서 완전히 떨어져 있던 연속 스텝 수 (미세 바운스 유예 판정용)
             }
 
             update() {
@@ -476,18 +478,24 @@ html_code = """
                 item.isOnRope = anyCollision;
                 if (item.isOnRope) {
                     item.hasTouchedRope = true;
+                    item.offRopeStreak = 0; // 다시 닿았으니 이탈 카운트 초기화
                 } else if (item.hasTouchedRope) {
-                    // 로프에서 이탈하면 "연속 안착" 타이머를 리셋한다 (한 번 스치기만 해도
-                    // 성공 처리되던 문제를 막기 위함 -> 반드시 로프 위에서 연속으로 SUCCESS_STEPS를 채워야 함)
-                    item.touchTimer = 0;
+                    // 로프에서 완전히 이탈한 연속 스텝 수를 센다. 미세하게 통통 튀는 정도(예: 그물처럼
+                    // 출렁이는 로프 표면에서 반복적으로 살짝 뜨는 경우)는 BOUNCE_GRACE_STEPS 이내면
+                    // 눈감아주고, 그 이상 완전히 떨어져 있어야만 "연속 안착" 타이머를 리셋한다.
+                    item.offRopeStreak++;
+                    if (item.offRopeStreak > BOUNCE_GRACE_STEPS) {
+                        item.touchTimer = 0;
+                    }
                 }
             });
 
             // 4. 아이템 2초 연속 안착 / 폭발 / 낙하 판정
             fallingItems = fallingItems.filter(item => {
                 if (item.type === 'apple' || item.type === 'star') {
-                    // 로프 위에 있는 동안에만 타이머가 증가 (이탈 시 위에서 이미 0으로 리셋됨)
-                    if (item.isOnRope) {
+                    // 로프 위에 있거나, 유예 시간 이내로 살짝 튄 상태일 때 타이머가 증가
+                    // (완전히 이탈해서 유예 시간을 넘기면 위 충돌 처리 단계에서 이미 0으로 리셋됨)
+                    if (item.isOnRope || (item.hasTouchedRope && item.offRopeStreak <= BOUNCE_GRACE_STEPS)) {
                         item.touchTimer++;
                         // SUCCESS_STEPS(2초) 연속 유지 성공 시 점수 획득
                         if (item.touchTimer >= SUCCESS_STEPS) {
