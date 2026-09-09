@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🪢 Rope Balance Catcher (1초 안착 물리 캐치 게임)")
-st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과를 로프 위에 1초 동안 안전하게 얹어 점수를 얻으세요! (먼저 게임 화면을 한 번 클릭해주세요)")
+st.title("🪢 Rope Balance Catcher (2초 안착 물리 캐치 게임)")
+st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과를 로프 위에 2초 동안 연속으로 안전하게 얹어 점수를 얻으세요! (먼저 게임 화면을 한 번 클릭해주세요)")
 
 html_code = """
 <!DOCTYPE html>
@@ -90,7 +90,7 @@ html_code = """
         const MAX_ITEM_GRAVITY = 0.09;     // 시간이 지나며 도달하는 최대 낙하 중력
         let currentItemGravity = BASE_ITEM_GRAVITY; // 난이도에 따라 매 스텝 갱신됨
 
-        const SUCCESS_STEPS = 120;         // 성공 판정까지 필요한 스텝 수 (60스텝=1초 -> 120스텝=2초)
+        const SUCCESS_STEPS = 120;         // 성공 판정까지 필요한 스텝 수 (60스텝=1초 -> 120스텝=2초, 로프에서 이탈하면 리셋됨)
 
         const ropePoints = 22;
         const restLen = 17;
@@ -119,7 +119,7 @@ html_code = """
         let effects = [];
         let score = 0;
         let lives = 3;
-        let spawnTimer = 0;
+        let spawnCountdown = BASE_SPAWN_INTERVAL; // 카운트다운 방식 스폰 타이머 (난이도 변화에 안전)
         let isGameOver = false;
 
         const keys = {};
@@ -218,9 +218,9 @@ html_code = """
                 this.vy = 0; 
                 this.type = type; // 'apple', 'star', 'bomb'
                 this.radius = type === 'star' ? 15 : 18;
-                this.touchTimer = 0; // SUCCESS_STEPS 스텝 = 2초
+                this.touchTimer = 0; // 로프 위에 연속으로 머문 스텝 수 (SUCCESS_STEPS = 2초)
                 this.isOnRope = false;
-                this.hasTouchedRope = false; // 한 번이라도 닿았는지 여부 (한 번 닿으면 계속 카운트)
+                this.hasTouchedRope = false; // 한 번이라도 닿았는지 여부 (게이지 표시용)
             }
 
             update() {
@@ -250,7 +250,7 @@ html_code = """
                 let symbol = this.type === 'apple' ? '🍎' : (this.type === 'star' ? '⭐' : '💣');
                 ctx.fillText(symbol, this.x, this.y);
 
-                // 안착 타이머 게이지 (한 번 닿았으면 로프에서 떨어져도 계속 표시됨)
+                // 안착 타이머 게이지 (로프에 닿아있는 동안의 "연속" 유지 시간을 표시. 이탈하면 0으로 리셋됨)
                 if (this.hasTouchedRope && (this.type === 'apple' || this.type === 'star')) {
                     let progress = Math.min(1.0, this.touchTimer / SUCCESS_STEPS);
                     ctx.beginPath();
@@ -297,7 +297,7 @@ html_code = """
             effects = [];
             score = 0;
             lives = 3;
-            spawnTimer = 0;
+            spawnCountdown = BASE_SPAWN_INTERVAL;
             isGameOver = false;
             initRope();
             updateUI();
@@ -402,9 +402,11 @@ html_code = """
 
             handleInput();
 
-            // 1. 물체 생성 (난이도가 오를수록 더 자주, 폭탄 확률도 더 높게 등장)
-            spawnTimer++;
-            if (spawnTimer % currentSpawnInterval === 0) {
+            // 1. 물체 생성 (카운트다운 방식: currentSpawnInterval이 난이도에 따라 매 프레임 바뀌어도
+            //    나머지 연산(%)처럼 정확히 0이 되는 시점을 놓쳐 스폰이 씹히는 문제가 없음)
+            spawnCountdown--;
+            if (spawnCountdown <= 0) {
+                spawnCountdown += currentSpawnInterval;
                 let spawnX = 60 + Math.random() * (canvas.width - 120);
                 let rand = Math.random();
                 let appleChance = (1 - currentBombChance) * 0.75; // 사과:별 비율은 기존처럼 3:1 유지
@@ -472,16 +474,22 @@ html_code = """
                 }
 
                 item.isOnRope = anyCollision;
-                if (item.isOnRope) item.hasTouchedRope = true;
+                if (item.isOnRope) {
+                    item.hasTouchedRope = true;
+                } else if (item.hasTouchedRope) {
+                    // 로프에서 이탈하면 "연속 안착" 타이머를 리셋한다 (한 번 스치기만 해도
+                    // 성공 처리되던 문제를 막기 위함 -> 반드시 로프 위에서 연속으로 SUCCESS_STEPS를 채워야 함)
+                    item.touchTimer = 0;
+                }
             });
 
-            // 4. 아이템 1초 안착 / 폭발 / 낙하 판정
+            // 4. 아이템 2초 연속 안착 / 폭발 / 낙하 판정
             fallingItems = fallingItems.filter(item => {
                 if (item.type === 'apple' || item.type === 'star') {
-                    // 한 번이라도 로프에 닿았으면, 이후 로프에서 떨어져도 타이머는 계속 증가함
-                    if (item.hasTouchedRope) {
+                    // 로프 위에 있는 동안에만 타이머가 증가 (이탈 시 위에서 이미 0으로 리셋됨)
+                    if (item.isOnRope) {
                         item.touchTimer++;
-                        // SUCCESS_STEPS(2초) 유지 성공 시 점수 획득
+                        // SUCCESS_STEPS(2초) 연속 유지 성공 시 점수 획득
                         if (item.touchTimer >= SUCCESS_STEPS) {
                             let color = item.type === 'apple' ? '#22c55e' : '#eab308';
                             createParticles(item.x, item.y, color, 20);
