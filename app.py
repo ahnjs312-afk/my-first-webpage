@@ -420,43 +420,58 @@ html_code = """
 
             fallingItems.forEach(item => item.update());
 
-            // 3. 로프와 원형 물체 충돌 처리 — 스윕(swept) 검사
-            // "이전 위치 -> 현재 위치" 이동 경로 선분과 각 로프 세그먼트 사이의 최단 거리를 검사해서,
-            // 이번 스텝에 아이템이 로프를 그냥 통과해버렸는지(터널링)까지 잡아낸다.
+            // 3. 로프와 원형 물체 충돌 처리 — 스윕(swept) + 다중 반복 보정
+            // "이전 위치 -> 현재 위치" 경로와 로프 세그먼트의 최단 거리로 통과(터널링)를 잡아내는 것에 더해,
+            // 사과가 로프 양쪽 세그먼트에 동시에 '끼는' 상황을 처리하기 위해 한 스텝에 여러 번 반복 보정한다.
+            // 반복 없이 가장 가까운 세그먼트 한 쪽만 보정하면, 반대쪽 세그먼트가 계속 조여올 때
+            // 아이템이 한쪽으로만 밀려나다가 다음 스텝에 이미 반대편 세그먼트를 지나쳐버릴 수 있다(터널링).
+            const SQUEEZE_ITERATIONS = 4;
+
             fallingItems.forEach(item => {
-                let best = null;
                 let pathStart = { x: item.prevX, y: item.prevY };
-                let pathEnd = { x: item.x, y: item.y };
+                let anyCollision = false;
+                let lastBest = null;
 
-                for (let i = 0; i < particles.length - 1; i++) {
-                    let ropeP1 = particles[i], ropeP2 = particles[i + 1];
-                    let res = closestDistBetweenSegments(pathStart, pathEnd, ropeP1, ropeP2);
+                for (let iter = 0; iter < SQUEEZE_ITERATIONS; iter++) {
+                    let best = null;
+                    let pathEnd = { x: item.x, y: item.y };
 
-                    if (res.dist < item.radius + 3 && (!best || res.dist < best.dist)) {
-                        let segDx = ropeP2.x - ropeP1.x, segDy = ropeP2.y - ropeP1.y;
-                        let segLen = Math.hypot(segDx, segDy) || 1;
-                        let tx = segDx / segLen; // 세그먼트 접선 방향(정규화)
-                        let ty = segDy / segLen;
-                        let nx = res.dist > 1e-6 ? res.dx / res.dist : 0; // 로프 접점 -> 경로 쪽 법선 방향
-                        let ny = res.dist > 1e-6 ? res.dy / res.dist : -1;
-                        best = { dist: res.dist, t: res.t, nx, ny, tx, ty, p1: ropeP1, p2: ropeP2, contactX: res.c2x, contactY: res.c2y };
+                    for (let i = 0; i < particles.length - 1; i++) {
+                        let ropeP1 = particles[i], ropeP2 = particles[i + 1];
+                        let res = closestDistBetweenSegments(pathStart, pathEnd, ropeP1, ropeP2);
+
+                        if (res.dist < item.radius + 3 && (!best || res.dist < best.dist)) {
+                            let segDx = ropeP2.x - ropeP1.x, segDy = ropeP2.y - ropeP1.y;
+                            let segLen = Math.hypot(segDx, segDy) || 1;
+                            let tx = segDx / segLen; // 세그먼트 접선 방향(정규화)
+                            let ty = segDy / segLen;
+                            let nx = res.dist > 1e-6 ? res.dx / res.dist : 0; // 로프 접점 -> 경로 쪽 법선 방향
+                            let ny = res.dist > 1e-6 ? res.dy / res.dist : -1;
+                            best = { dist: res.dist, t: res.t, nx, ny, tx, ty, p1: ropeP1, p2: ropeP2, contactX: res.c2x, contactY: res.c2y };
+                        }
                     }
-                }
 
-                if (best) {
+                    if (!best) break; // 더 이상 겹치는 세그먼트가 없으면 수렴 완료
+
+                    anyCollision = true;
+                    lastBest = best;
+
                     // 통과해버린 위치가 아니라, 로프 접점에서 정확히 (radius+3)만큼 떨어진 지점으로 배치
                     item.x = best.contactX + best.nx * (item.radius + 3);
                     item.y = best.contactY + best.ny * (item.radius + 3);
-                    item.vy = -item.vy * 0.2;
 
-                    // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨
-                    item.vx += best.tx * best.ty * 0.6;
-
+                    // 접촉한 세그먼트도 살짝 눌리도록 반응 (각 반복마다 누적 적용)
                     if (!best.p1.isLeftPin && !best.p1.isRightPin) best.p1.y += 1.8 * (1 - best.t);
                     if (!best.p2.isLeftPin && !best.p2.isRightPin) best.p2.y += 1.8 * best.t;
                 }
 
-                item.isOnRope = !!best;
+                if (anyCollision) {
+                    item.vy = -item.vy * 0.2;
+                    // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨 (마지막으로 닿은 세그먼트 기준)
+                    item.vx += lastBest.tx * lastBest.ty * 0.6;
+                }
+
+                item.isOnRope = anyCollision;
                 if (item.isOnRope) item.hasTouchedRope = true;
             });
 
