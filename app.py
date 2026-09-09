@@ -67,8 +67,115 @@ html_code = """
         <div class="life-board" id="lives">❤️❤️❤️</div>
         <button onclick="resetGame()">🔄 게임 리셋</button>
     </div>
+    <div style="position: relative; width: 850px; height: 580px;">
+    <div id="lobby" style="
+        position: absolute;
+        top: 0; left: 0;
+        width: 850px;
+        height: 580px;
+        background: linear-gradient(160deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        z-index: 10;
+        user-select: none;
+    ">
+        <!-- 타이틀 -->
+        <div style="font-size: 52px; margin-bottom: 4px;">🪢</div>
+        <div style="font-size: 30px; font-weight: 900; color: #e9d5ff; letter-spacing: -0.5px; margin-bottom: 4px;">Rope Balance Catcher</div>
+        <div style="font-size: 13px; color: #a78bfa; margin-bottom: 32px;">로프 위에 물체를 2초간 올려놓으면 점수!</div>
+
+        <!-- 설명 카드 -->
+        <div style="
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+        ">
+            <!-- 조작법 -->
+            <div style="
+                background: rgba(255,255,255,0.06);
+                border: 1px solid rgba(255,255,255,0.12);
+                border-radius: 12px;
+                padding: 18px 24px;
+                width: 220px;
+            ">
+                <div style="font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">🎮 조작</div>
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <div style="display:flex;gap:4px;">
+                        <kbd style="background:#334155;color:#e2e8f0;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:700;border:1px solid #475569;">A</kbd>
+                        <kbd style="background:#334155;color:#e2e8f0;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:700;border:1px solid #475569;">D</kbd>
+                    </div>
+                    <span style="color:#cbd5e1;font-size:13px;">🔵 왼쪽 축 이동</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="display:flex;gap:4px;">
+                        <kbd style="background:#334155;color:#e2e8f0;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:700;border:1px solid #475569;">◀</kbd>
+                        <kbd style="background:#334155;color:#e2e8f0;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:700;border:1px solid #475569;">▶</kbd>
+                    </div>
+                    <span style="color:#cbd5e1;font-size:13px;">🔴 오른쪽 축 이동</span>
+                </div>
+            </div>
+
+            <!-- 아이템 -->
+            <div style="
+                background: rgba(255,255,255,0.06);
+                border: 1px solid rgba(255,255,255,0.12);
+                border-radius: 12px;
+                padding: 18px 24px;
+                width: 220px;
+            ">
+                <div style="font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">📦 아이템</div>
+                <div style="color:#cbd5e1;font-size:13px;line-height:2;">
+                    🍎 사과 — 로프에 2초 유지 &nbsp;<span style="color:#4ade80;font-weight:700;">+15</span><br>
+                    ⭐ 별 &nbsp; — 로프에 2초 유지 &nbsp;<span style="color:#facc15;font-weight:700;">+35</span><br>
+                    💣 폭탄 — 로프에 닿으면 &nbsp;&nbsp;<span style="color:#f87171;font-weight:700;">-❤️</span>
+                </div>
+            </div>
+
+            <!-- 규칙 -->
+            <div style="
+                background: rgba(255,255,255,0.06);
+                border: 1px solid rgba(255,255,255,0.12);
+                border-radius: 12px;
+                padding: 18px 24px;
+                width: 220px;
+            ">
+                <div style="font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">📋 규칙</div>
+                <div style="color:#cbd5e1;font-size:13px;line-height:2;">
+                    ❤️ 목숨은 3개<br>
+                    🕳️ 사과·별이 떨어지면 <span style="color:#f87171;">-❤️</span><br>
+                    ⏱️ 갈수록 빠르고 어려워짐
+                </div>
+            </div>
+        </div>
+
+        <!-- 시작 버튼 -->
+        <button onclick="startGame()" style="
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            color: white;
+            border: none;
+            padding: 14px 48px;
+            font-size: 18px;
+            font-weight: 800;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 24px rgba(124,58,237,0.5);
+            letter-spacing: 0.5px;
+            transition: transform 0.1s, box-shadow 0.1s;
+        "
+        onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 6px 30px rgba(124,58,237,0.7)'"
+        onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 24px rgba(124,58,237,0.5)'"
+        >▶ 게임 시작</button>
+    </div>
+
     <canvas id="canvas" width="850" height="580" tabindex="0"></canvas>
-    <div class="hint">화면을 클릭하면 키보드 입력이 활성화됩니다</div>
+    </div><!-- /relative wrapper -->
+    <div class="hint" id="hint" style="visibility:hidden;">화면을 클릭하면 키보드 입력이 활성화됩니다</div>
 
     <script>
         const canvas = document.getElementById('canvas');
@@ -76,7 +183,16 @@ html_code = """
 
         // 캔버스에 포커스를 줘야 iframe 안에서 키 입력이 확실히 잡힘
         canvas.addEventListener('click', () => canvas.focus());
-        canvas.focus();
+
+        let isLobby = true;
+
+        function startGame() {
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('hint').style.visibility = 'visible';
+            isLobby = false;
+            resetGame();
+            canvas.focus();
+        }
 
         // ---- 물리/난이도 상수 ----
         // 아래 값들은 "초당" 기준으로 튜닝되어 있고, 고정 타임스텝(STEP_MS)으로 매 프레임 동일하게 적용됩니다.
@@ -490,7 +606,7 @@ html_code = """
 
         // 물리/게임 로직 한 스텝 (항상 동일한 "가상 시간" 단위로 실행됨 -> 기기 성능과 무관)
         function step() {
-            if (isGameOver) return;
+            if (isLobby || isGameOver) return;
 
             gameSteps++;
 
@@ -717,15 +833,15 @@ html_code = """
             // 낙하 물체 그리기
             fallingItems.forEach(item => item.draw());
 
-            // Game Over
+            // Game Over — 로비 화면으로 복귀
             if (isGameOver) {
-                ctx.font = "bold 36px sans-serif";
-                ctx.fillStyle = "#e53e3e";
-                ctx.textAlign = "center";
-                ctx.fillText("GAME OVER", canvas.width / 2, 230);
-                ctx.font = "18px sans-serif";
-                ctx.fillStyle = "#4a5568";
-                ctx.fillText("상단의 [게임 리셋] 버튼을 눌러 다시 시작하세요!", canvas.width / 2, 270);
+                // 버튼 텍스트를 "다시 시작"으로 바꾸고 로비를 다시 보여줌
+                const lobby = document.getElementById('lobby');
+                lobby.querySelector('button').textContent = '🔄 다시 시작';
+                lobby.style.display = 'flex';
+                document.getElementById('hint').style.visibility = 'hidden';
+                isLobby = true;
+                isGameOver = false;
             }
         }
 
