@@ -204,6 +204,7 @@ html_code = """
                 this.radius = type === 'star' ? 15 : 18;
                 this.touchTimer = 0; // 60스텝 = 1초
                 this.isOnRope = false;
+                this.hasTouchedRope = false; // 한 번이라도 닿았는지 여부 (한 번 닿으면 계속 카운트)
             }
 
             update() {
@@ -231,8 +232,8 @@ html_code = """
                 let symbol = this.type === 'apple' ? '🍎' : (this.type === 'star' ? '⭐' : '💣');
                 ctx.fillText(symbol, this.x, this.y);
 
-                // 1초(60스텝) 안착 타이머 게이지
-                if (this.isOnRope && (this.type === 'apple' || this.type === 'star')) {
+                // 1초(60스텝) 안착 타이머 게이지 (한 번 닿았으면 로프에서 떨어져도 계속 표시됨)
+                if (this.hasTouchedRope && (this.type === 'apple' || this.type === 'star')) {
                     let progress = Math.min(1.0, this.touchTimer / 60);
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, this.radius + 5, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * progress));
@@ -382,12 +383,14 @@ html_code = """
                 }
 
                 item.isOnRope = !!best;
+                if (item.isOnRope) item.hasTouchedRope = true;
             });
 
             // 4. 아이템 1초 안착 / 폭발 / 낙하 판정
             fallingItems = fallingItems.filter(item => {
                 if (item.type === 'apple' || item.type === 'star') {
-                    if (item.isOnRope) {
+                    // 한 번이라도 로프에 닿았으면, 이후 로프에서 떨어져도 타이머는 계속 증가함
+                    if (item.hasTouchedRope) {
                         item.touchTimer++;
                         // 1초 (60스텝) 유지 성공 시 점수 획득
                         if (item.touchTimer >= 60) {
@@ -397,8 +400,6 @@ html_code = """
                             updateUI();
                             return false;
                         }
-                    } else {
-                        item.touchTimer = Math.max(0, item.touchTimer - 2);
                     }
                 } else if (item.type === 'bomb') {
                     if (item.isOnRope) {
