@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🪢 Rope Balance Catcher (2초 안착 물리 캐치 게임)")
-st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과를 로프 위에 2초 동안 안전하게 얹어 점수를 얻으세요!")
+st.title("🪢 Rope Balance Catcher (1초 안착 물리 캐치 게임)")
+st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과를 로프 위에 1초 동안 안전하게 얹어 점수를 얻으세요!")
 
 html_code = """
 <!DOCTYPE html>
@@ -137,7 +137,6 @@ html_code = """
             }
         }
 
-        // 파티클 이펙트
         class Sparkle {
             constructor(x, y, color) {
                 this.x = x;
@@ -170,24 +169,22 @@ html_code = """
             constructor(x, y, type) {
                 this.x = x;
                 this.y = y;
-                this.vx = (Math.random() - 0.5) * 1.2;
-                this.vy = 0; // 초기 약한 속도
+                this.vx = 0; // 가로 쏠림 방지 (직하강)
+                this.vy = 0; 
                 this.type = type; // 'apple', 'star', 'bomb'
                 this.radius = type === 'star' ? 15 : 18;
-                this.touchTimer = 0; // 로프 위 안착 프레임 타이머 (120프레임 = 2초)
+                this.touchTimer = 0; // 60프레임 = 1초
                 this.isOnRope = false;
             }
 
             update() {
-                // 약한 중력 적용
                 this.vy += itemGravity;
                 this.x += this.vx;
                 this.y += this.vy;
-                this.vx *= 0.98; // 공기 저항
+                this.vx *= 0.98;
             }
 
             draw() {
-                // 원형 물리 바디 그리기
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 if (this.type === 'apple') ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
@@ -199,16 +196,15 @@ html_code = """
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // 이모지 심볼
                 ctx.font = "18px sans-serif";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 let symbol = this.type === 'apple' ? '🍎' : (this.type === 'star' ? '⭐' : '💣');
                 ctx.fillText(symbol, this.x, this.y);
 
-                // 2초 안착 타이머 게이지 (프로그레스 링)
+                // 1초(60프레임) 안착 타이머 게이지
                 if (this.isOnRope && (this.type === 'apple' || this.type === 'star')) {
-                    let progress = Math.min(1.0, this.touchTimer / 120);
+                    let progress = Math.min(1.0, this.touchTimer / 60);
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, this.radius + 5, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * progress));
                     ctx.strokeStyle = this.type === 'apple' ? '#22c55e' : '#3b82f6';
@@ -262,7 +258,6 @@ html_code = """
             document.getElementById('lives').innerText = hearts || "💀 GAME OVER";
         }
 
-        // 선분과 원 충돌 판정 계산 함수
         function checkSegmentCircleCollision(p1, p2, circle) {
             let dx = p2.x - p1.x;
             let dy = p2.y - p1.y;
@@ -306,16 +301,16 @@ html_code = """
             if (!isGameOver) {
                 handleInput();
 
-                // 1. 물체 생성
+                // 1. 물체 생성 (화면 전역에서 좌우 쏠림 없이 대칭으로 스폰)
                 spawnTimer++;
-                if (spawnTimer % 80 === 0) {
-                    let spawnX = 100 + Math.random() * (canvas.width - 200);
+                if (spawnTimer % 75 === 0) {
+                    let spawnX = 60 + Math.random() * (canvas.width - 120);
                     let rand = Math.random();
                     let type = rand < 0.6 ? 'apple' : (rand < 0.8 ? 'star' : 'bomb');
                     fallingItems.push(new FallingItem(spawnX, -20, type));
                 }
 
-                // 2. 물리 연산 (로프 & 물체)
+                // 2. 물리 연산
                 particles.forEach(p => p.update());
                 for (let i = 0; i < 8; i++) {
                     constraints.forEach(c => c.resolve());
@@ -323,7 +318,7 @@ html_code = """
 
                 fallingItems.forEach(item => item.update());
 
-                // 3. 로프와 원형 물체 충돌 및 안착 처리
+                // 3. 로프와 원형 물체 충돌 처리
                 fallingItems.forEach(item => {
                     let touching = false;
 
@@ -336,13 +331,11 @@ html_code = """
                             touching = true;
                             let overlap = (item.radius + 3) - col.dist;
 
-                            // 물체 밀어내기 및 반발력 적용
                             item.x += col.nx * overlap;
                             item.y += col.ny * overlap;
-                            item.vy = -item.vy * 0.2; // 충격 완화
+                            item.vy = -item.vy * 0.2; 
                             item.vx += (p2.x - p1.x) * 0.02;
 
-                            // 로프를 눌러 처지게 만듦
                             if (!p1.isLeftPin && !p1.isRightPin) p1.y += 1.8 * (1 - col.t);
                             if (!p2.isLeftPin && !p2.isRightPin) p2.y += 1.8 * col.t;
                         }
@@ -351,34 +344,31 @@ html_code = """
                     item.isOnRope = touching;
                 });
 
-                // 4. 아이템 2초안착 / 폭발 / 낙하 판정
+                // 4. 아이템 1초 안착 / 폭발 / 낙하 판정
                 fallingItems = fallingItems.filter(item => {
                     if (item.type === 'apple' || item.type === 'star') {
                         if (item.isOnRope) {
                             item.touchTimer++;
-                            // 2초 (120프레임) 유지 성공 시 점수 획득
-                            if (item.touchTimer >= 120) {
+                            // 1초 (60프레임) 유지 성공 시 점수 획득
+                            if (item.touchTimer >= 60) {
                                 let color = item.type === 'apple' ? '#22c55e' : '#eab308';
                                 createParticles(item.x, item.y, color, 20);
                                 score += (item.type === 'apple' ? 15 : 35);
                                 updateUI();
-                                return false; // 성공하여 삭제
+                                return false;
                             }
                         } else {
-                            // 로프에서 이탈하면 게이지 감소
                             item.touchTimer = Math.max(0, item.touchTimer - 2);
                         }
                     } else if (item.type === 'bomb') {
                         if (item.isOnRope) {
-                            // 폭탄이 로프에 닿으면 즉시 폭발!
                             createParticles(item.x, item.y, '#ef4444', 25);
                             lives--;
                             updateUI();
-                            return false; // 삭제
+                            return false;
                         }
                     }
 
-                    // 화면 바닥 낙하 판정
                     if (item.y > canvas.height + 30) {
                         if (item.type === 'apple' || item.type === 'star') {
                             lives--;
@@ -393,7 +383,7 @@ html_code = """
                 if (lives <= 0) isGameOver = true;
             }
 
-            // 5. 파티클 이펙트 업데이트 & 그리기
+            // 5. 이펙트 파티클
             effects = effects.filter(e => {
                 e.update();
                 e.draw();
@@ -413,7 +403,7 @@ html_code = """
             }
             ctx.stroke();
 
-            // 7. 좌/우 조작 핸들
+            // 7. 좌/우 축 (A/D & 화살표)
             ctx.fillStyle = '#3182ce';
             ctx.beginPath();
             ctx.arc(leftPinX, pinsY, 12, 0, Math.PI * 2);
@@ -430,10 +420,10 @@ html_code = """
             ctx.fillStyle = '#ffffff';
             ctx.fillText("⬅️➡️", rightPinX, pinsY + 3);
 
-            // 8. 떨어지는 물체 그리기
+            // 8. 낙하 물체 그리기
             fallingItems.forEach(item => item.draw());
 
-            // Game Over 문구
+            // Game Over
             if (isGameOver) {
                 ctx.font = "bold 36px sans-serif";
                 ctx.fillStyle = "#e53e3e";
