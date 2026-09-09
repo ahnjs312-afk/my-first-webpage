@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🧵 천 베기 (Cloth Ninja)")
-st.caption("💡 마우스 드래그로 튀어 오르는 천을 베어내세요! 천을 자를 때마다 점수가 올라갑니다.")
+st.title("🧵 천 시뮬레이션 (상호작용 & 자르기)")
+st.caption("💡 **왼쪽 클릭 드래그**: 천 잡고 당기기 | ✂️ **오른쪽 클릭 드래그**: 천 자르기")
 
 html_code = """
 <!DOCTYPE html>
@@ -19,16 +19,8 @@ html_code = """
             align-items: center; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-        .ui-panel {
-            display: flex;
-            gap: 30px;
-            align-items: center;
+        .controls {
             margin-bottom: 10px;
-        }
-        .score-board {
-            font-size: 20px;
-            font-weight: bold;
-            color: #1a202c;
         }
         button {
             background-color: #ff3b30;
@@ -40,8 +32,11 @@ html_code = """
             border-radius: 6px;
             cursor: pointer;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.2s;
         }
-        button:hover { background-color: #e02d22; }
+        button:hover {
+            background-color: #e02d22;
+        }
         canvas { 
             background: #ffffff; 
             border: 2px solid #e2e8f0;
@@ -52,33 +47,39 @@ html_code = """
     </style>
 </head>
 <body>
-    <div class="ui-panel">
-        <div class="score-board" id="score">SCORE: 0</div>
-        <button onclick="resetGame()">🔄 다시 하기 (Reset)</button>
+    <div class="controls">
+        <button onclick="resetCloth()">🔄 천 초기화 (Reset)</button>
     </div>
-    <canvas id="canvas" width="850" height="580"></canvas>
+    <canvas id="canvas" width="850" height="560"></canvas>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
+        const cols = 25;
+        const rows = 18;
+        const spacing = 22;
+        const startX = 150;
+        const startY = 40;
         const gravity = 0.2;
         const friction = 0.99;
 
-        let score = 0;
-        let cloths = [];
-        let mouseTrail = [];
-        let isMouseDown = false;
+        let particles = [];
+        let constraints = [];
+        let draggedParticle = null;
+        let isRightClicking = false;
 
         class Particle {
-            constructor(x, y) {
+            constructor(x, y, pinned = false) {
                 this.x = x;
                 this.y = y;
                 this.oldx = x;
                 this.oldy = y;
+                this.pinned = pinned;
             }
 
             update() {
+                if (this.pinned) return;
                 let vx = (this.x - this.oldx) * friction;
                 let vy = (this.y - this.oldy) * friction;
                 this.oldx = this.x;
@@ -93,83 +94,55 @@ html_code = """
                 this.p1 = p1;
                 this.p2 = p2;
                 this.length = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                this.active = true;
             }
 
             resolve() {
-                if (!this.active) return;
                 let dx = this.p2.x - this.p1.x;
                 let dy = this.p2.y - this.p1.y;
                 let dist = Math.hypot(dx, dy);
                 if (dist === 0) return;
                 let diff = (this.length - dist) / dist * 0.5;
                 
-                this.p1.x -= dx * diff;
-                this.p1.y -= dy * diff;
-                this.p2.x += dx * diff;
-                this.p2.y += dy * diff;
+                if (!this.p1.pinned) {
+                    this.p1.x -= dx * diff;
+                    this.p1.y -= dy * diff;
+                }
+                if (!this.p2.pinned) {
+                    this.p2.x += dx * diff;
+                    this.p2.y += dy * diff;
+                }
             }
         }
 
-        class Cloth {
-            constructor(x, y, cols = 7, rows = 7, spacing = 14) {
-                this.particles = [];
-                this.constraints = [];
-                this.cols = cols;
-                this.rows = rows;
+        // 초기화 함수
+        function resetCloth() {
+            particles = [];
+            constraints = [];
+            draggedParticle = null;
 
-                for (let r = 0; r < rows; r++) {
-                    for (let c = 0; c < cols; c++) {
-                        this.particles.push(new Particle(x + c * spacing, y + r * spacing));
-                    }
-                }
-
-                // 솟구쳐 오르는 속도 및 불균일한 펄럭임 힘 추가
-                let vx = (Math.random() - 0.5) * 6;
-                let vy = -(12 + Math.random() * 4);
-
-                this.particles.forEach(p => {
-                    let noiseX = (Math.random() - 0.5) * 2;
-                    let noiseY = (Math.random() - 0.5) * 2;
-                    p.oldx = p.x - (vx + noiseX);
-                    p.oldy = p.y - (vy + noiseY);
-                });
-
-                for (let r = 0; r < rows; r++) {
-                    for (let c = 0; c < cols; c++) {
-                        let idx = r * cols + c;
-                        if (c < cols - 1) this.constraints.push(new Constraint(this.particles[idx], this.particles[idx + 1]));
-                        if (r < rows - 1) this.constraints.push(new Constraint(this.particles[idx], this.particles[idx + cols]));
-                    }
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let pinned = (r === 0 && (
+                        c === 0 || 
+                        c === Math.floor((cols - 1) * 0.25) || 
+                        c === Math.floor((cols - 1) * 0.5) || 
+                        c === Math.floor((cols - 1) * 0.75) || 
+                        c === cols - 1
+                    ));
+                    particles.push(new Particle(startX + c * spacing, startY + r * spacing, pinned));
                 }
             }
 
-            update() {
-                this.particles.forEach(p => p.update());
-                // 보정 횟수를 6회로 늘려 베를레 적분 탄성 효과 강화
-                for (let i = 0; i < 6; i++) {
-                    this.constraints.forEach(c => c.resolve());
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let idx = r * cols + c;
+                    if (c < cols - 1) constraints.push(new Constraint(particles[idx], particles[idx + 1]));
+                    if (r < rows - 1) constraints.push(new Constraint(particles[idx], particles[idx + cols]));
                 }
-            }
-
-            draw() {
-                ctx.beginPath();
-                ctx.strokeStyle = '#1a1a1a';
-                ctx.lineWidth = 1.8;
-                this.constraints.forEach(c => {
-                    if (c.active) {
-                        ctx.moveTo(c.p1.x, c.p1.y);
-                        ctx.lineTo(c.p2.x, c.p2.y);
-                    }
-                });
-                ctx.stroke();
-            }
-
-            isOutOfBounds() {
-                return this.particles.every(p => p.y > canvas.height + 50);
             }
         }
 
+        // 선분과 점(마우스) 사이의 거리 계산 (자르기 로직)
         function distToSegment(p, v, w) {
             let l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
             if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
@@ -178,77 +151,110 @@ html_code = """
             return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
         }
 
-        let spawnTimer = 0;
+        // 우클릭 기본 메뉴 방지
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        function resetGame() {
-            score = 0;
-            cloths = [];
-            mouseTrail = [];
-            document.getElementById('score').innerText = "SCORE: 0";
-        }
+        let mouse = { x: -100, y: -100, isHover: false };
 
-        let mouse = { x: -100, y: -100 };
+        canvas.addEventListener('mouseenter', () => { mouse.isHover = true; });
+        canvas.addEventListener('mouseleave', () => { mouse.isHover = false; draggedParticle = null; isRightClicking = false; });
 
-        canvas.addEventListener('mousedown', () => { isMouseDown = true; });
-        canvas.addEventListener('mouseup', () => { isMouseDown = false; });
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+
+            if (e.button === 0) { // 좌클릭: 잡아당기기
+                let minDist = 35;
+                particles.forEach(p => {
+                    let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+                    if (d < minDist) {
+                        minDist = d;
+                        draggedParticle = p;
+                    }
+                });
+            } else if (e.button === 2) { // 우클릭: 자르기 시작
+                isRightClicking = true;
+                cutCloth();
+            }
+        });
+
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             mouse.x = e.clientX - rect.left;
             mouse.y = e.clientY - rect.top;
 
-            mouseTrail.push({ x: mouse.x, y: mouse.y, life: 10 });
-            if (isMouseDown || mouseTrail.length > 1) {
-                cutCloths();
+            if (draggedParticle) {
+                draggedParticle.x = mouse.x;
+                draggedParticle.y = mouse.y;
+            }
+
+            if (isRightClicking) {
+                cutCloth();
             }
         });
 
-        function cutCloths() {
-            cloths.forEach(cloth => {
-                cloth.constraints.forEach(c => {
-                    if (c.active) {
-                        let d = distToSegment(mouse, c.p1, c.p2);
-                        if (d < 12) {
-                            c.active = false;
-                            score += 10;
-                            document.getElementById('score').innerText = `SCORE: ${score}`;
-                        }
-                    }
-                });
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 0) draggedParticle = null;
+            if (e.button === 2) isRightClicking = false;
+        });
+
+        // 자르기 로직
+        function cutCloth() {
+            const cutRadius = 12; // 자르는 범위 반지름
+            constraints = constraints.filter(c => {
+                let d = distToSegment(mouse, c.p1, c.p2);
+                return d > cutRadius;
             });
         }
 
-        resetGame();
+        // 첫 시작 시 초기화
+        resetCloth();
 
+        // 애니메이션 루프
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            spawnTimer++;
-            if (spawnTimer % 70 === 0) {
-                let spawnX = 150 + Math.random() * (canvas.width - 300);
-                cloths.push(new Cloth(spawnX, canvas.height + 20, 7, 7, 14));
+            particles.forEach(p => p.update());
+            if (draggedParticle) {
+                draggedParticle.x = mouse.x;
+                draggedParticle.y = mouse.y;
             }
 
-            cloths.forEach(cloth => {
-                cloth.update();
-                cloth.draw();
-            });
+            for (let i = 0; i < 5; i++) {
+                constraints.forEach(c => c.resolve());
+            }
 
-            cloths = cloths.filter(cloth => !cloth.isOutOfBounds());
-
-            // 검기 궤적
+            // 천 (실) - 검은색
             ctx.beginPath();
-            if (mouseTrail.length > 0) {
-                ctx.moveTo(mouseTrail[0].x, mouseTrail[0].y);
-                for (let i = 1; i < mouseTrail.length; i++) {
-                    ctx.lineTo(mouseTrail[i].x, mouseTrail[i].y);
-                }
-            }
-            ctx.strokeStyle = '#ff2d55';
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1.8;
+            constraints.forEach(c => {
+                ctx.moveTo(c.p1.x, c.p1.y);
+                ctx.lineTo(c.p2.x, c.p2.y);
+            });
             ctx.stroke();
 
-            mouseTrail.forEach(t => t.life--);
-            mouseTrail = mouseTrail.filter(t => t.life > 0);
+            // 고정점 - 어두운 회색
+            particles.forEach(p => {
+                if (p.pinned) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = '#4a5568';
+                    ctx.fill();
+                }
+            });
+
+            // 마우스 커서 - 빨간색 (자르는 중일 땐 가위 아이콘 모드)
+            if (mouse.isHover) {
+                ctx.beginPath();
+                ctx.arc(mouse.x, mouse.y, isRightClicking ? 12 : (draggedParticle ? 8 : 6), 0, Math.PI * 2);
+                ctx.fillStyle = isRightClicking ? 'rgba(255, 59, 48, 0.2)' : (draggedParticle ? '#ff2d55' : 'rgba(255, 45, 85, 0.7)');
+                ctx.strokeStyle = '#ff2d55';
+                ctx.lineWidth = 1.5;
+                ctx.fill();
+                ctx.stroke();
+            }
 
             requestAnimationFrame(loop);
         }
