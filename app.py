@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🧺 Dual-Axis Cloth Catcher (두 손으로 잡는 천 게임)")
-st.caption("💡 **조작법**: [좌측 축] `A` / `D` 키 | [우측 축] `⬅️` / `➡️` 화살표 키 | 천을 조율해 폭탄을 피하고 물건을 받아내세요!")
+st.title("🪢 Dual-Axis Rope Catcher (1차원 로프 캐치 게임)")
+st.caption("💡 **조작법**: [좌측 축] `A` / `D` 키 | [우측 축] `⬅️` / `➡️` 화살표 키 | 로프를 움직여 아이템을 받으세요!")
 
 html_code = """
 <!DOCTYPE html>
@@ -67,16 +67,16 @@ html_code = """
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        const gravity = 0.25;
-        const friction = 0.98;
+        const gravity = 0.28;
+        const friction = 0.985;
 
-        const cols = 20;
-        const rows = 5;
+        // 1차원 로프 마디 수
+        const ropePoints = 22; 
         
         let leftPinX = 250;
         let rightPinX = 600;
         const pinsY = 320;
-        const moveSpeed = 7;
+        const moveSpeed = 8;
 
         let particles = [];
         let constraints = [];
@@ -141,10 +141,9 @@ html_code = """
             constructor(x, y, type) {
                 this.x = x;
                 this.y = y;
-                this.vy = 1.5 + Math.random() * 1.5;
+                this.vy = 1.8 + Math.random() * 1.5;
                 this.type = type; // 'apple', 'star', 'bomb'
                 this.radius = 16;
-                this.caught = false;
             }
 
             update() {
@@ -160,28 +159,22 @@ html_code = """
             }
         }
 
-        function initCloth() {
+        function initRope() {
             particles = [];
             constraints = [];
-            let widthStep = (rightPinX - leftPinX) / (cols - 1);
+            let widthStep = (rightPinX - leftPinX) / (ropePoints - 1);
 
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    let isLeftPin = (r === 0 && c === 0);
-                    let isRightPin = (r === 0 && c === cols - 1);
-                    let x = leftPinX + c * widthStep;
-                    let y = pinsY + r * 15;
-                    particles.push(new Particle(x, y, isLeftPin, isRightPin));
-                }
+            for (let i = 0; i < ropePoints; i++) {
+                let isLeftPin = (i === 0);
+                let isRightPin = (i === ropePoints - 1);
+                let x = leftPinX + i * widthStep;
+                let y = pinsY;
+                particles.push(new Particle(x, y, isLeftPin, isRightPin));
             }
 
-            let restLen = 18;
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    let idx = r * cols + c;
-                    if (c < cols - 1) constraints.push(new Constraint(particles[idx], particles[idx + 1], restLen));
-                    if (r < rows - 1) constraints.push(new Constraint(particles[idx], particles[idx + cols], restLen));
-                }
+            let restLen = 17;
+            for (let i = 0; i < ropePoints - 1; i++) {
+                constraints.push(new Constraint(particles[i], particles[i + 1], restLen));
             }
         }
 
@@ -193,7 +186,7 @@ html_code = """
             lives = 3;
             spawnTimer = 0;
             isGameOver = false;
-            initCloth();
+            initRope();
             updateUI();
         }
 
@@ -206,19 +199,16 @@ html_code = """
         resetGame();
 
         function handleInput() {
-            // 좌측 축 조작 (A / D)
             if (keys['a'] || keys['A']) leftPinX = Math.max(30, leftPinX - moveSpeed);
             if (keys['d'] || keys['D']) leftPinX = Math.min(rightPinX - 60, leftPinX + moveSpeed);
 
-            // 우측 축 조작 (화살표 ⬅️ / ➡️)
             if (keys['ArrowLeft']) rightPinX = Math.max(leftPinX + 60, rightPinX - moveSpeed);
             if (keys['ArrowRight']) rightPinX = Math.min(canvas.width - 30, rightPinX + moveSpeed);
 
-            // 핀 위치 연동
             particles[0].x = leftPinX;
             particles[0].y = pinsY;
-            particles[cols - 1].x = rightPinX;
-            particles[cols - 1].y = pinsY;
+            particles[ropePoints - 1].x = rightPinX;
+            particles[ropePoints - 1].y = pinsY;
         }
 
         function loop() {
@@ -227,50 +217,49 @@ html_code = """
             if (!isGameOver) {
                 handleInput();
 
-                // 1. 아이템 생성
+                // 1. 아이템 스폰
                 spawnTimer++;
-                if (spawnTimer % 65 === 0) {
+                if (spawnTimer % 60 === 0) {
                     let spawnX = 80 + Math.random() * (canvas.width - 160);
                     let rand = Math.random();
                     let type = rand < 0.6 ? 'apple' : (rand < 0.8 ? 'star' : 'bomb');
                     fallingItems.push(new FallingItem(spawnX, -20, type));
                 }
 
-                // 2. 물리 업데이트
+                // 2. 물리 연산
                 particles.forEach(p => p.update());
-                for (let i = 0; i < 5; i++) {
+                for (let i = 0; i < 8; i++) {
                     constraints.forEach(c => c.resolve());
                 }
 
                 fallingItems.forEach(item => item.update());
 
-                // 3. 천-아이템 충돌 및 수거 처리
+                // 3. 1차원 로프 충돌 판정
                 fallingItems = fallingItems.filter(item => {
-                    let caughtByCloth = false;
+                    let caughtByRope = false;
 
                     particles.forEach(p => {
                         let dx = p.x - item.x;
                         let dy = p.y - item.y;
                         let dist = Math.hypot(dx, dy);
 
-                        if (dist < item.radius + 10) {
-                            caughtByCloth = true;
+                        if (dist < item.radius + 12) {
+                            caughtByRope = true;
                             if (!p.isLeftPin && !p.isRightPin) {
-                                p.y += 12; // 천이 우묵하게 눌리는 효과
+                                p.y += 18; // 로프 충격 탄성 효과
                             }
                         }
                     });
 
-                    if (caughtByCloth) {
+                    if (caughtByRope) {
                         if (item.type === 'apple') score += 10;
                         else if (item.type === 'star') score += 25;
                         else if (item.type === 'bomb') lives--;
 
                         updateUI();
-                        return false; // 수거 완료되어 화면에서 삭제
+                        return false;
                     }
 
-                    // 바닥 낙하 처리
                     if (item.y > canvas.height + 20) {
                         if (item.type === 'apple' || item.type === 'star') {
                             lives--;
@@ -285,20 +274,33 @@ html_code = """
                 if (lives <= 0) isGameOver = true;
             }
 
-            // 4. 시각 가이드 및 천 그리기
+            // 4. 로프(Rope) 시각화 그리기
             ctx.beginPath();
-            ctx.strokeStyle = '#2d3748';
-            ctx.lineWidth = 2;
-            constraints.forEach(c => {
-                ctx.moveTo(c.p1.x, c.p1.y);
-                ctx.lineTo(c.p2.x, c.p2.y);
-            });
+            ctx.strokeStyle = '#8b5cf6'; // 퍼플 로프 색상
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            ctx.moveTo(particles[0].x, particles[0].y);
+            for (let i = 1; i < particles.length; i++) {
+                ctx.lineTo(particles[i].x, particles[i].y);
+            }
             ctx.stroke();
 
-            // 축 표시 (핸들)
+            // 로프 마디 포인트 강조
+            particles.forEach((p, idx) => {
+                if (idx > 0 && idx < particles.length - 1) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fill();
+                }
+            });
+
+            // 5. 좌/우 조작 축(손잡이)
             ctx.fillStyle = '#3182ce';
             ctx.beginPath();
-            ctx.arc(leftPinX, pinsY, 10, 0, Math.PI * 2);
+            ctx.arc(leftPinX, pinsY, 12, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#ffffff';
             ctx.font = "bold 10px sans-serif";
@@ -307,15 +309,15 @@ html_code = """
 
             ctx.fillStyle = '#e53e3e';
             ctx.beginPath();
-            ctx.arc(rightPinX, pinsY, 10, 0, Math.PI * 2);
+            ctx.arc(rightPinX, pinsY, 12, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#ffffff';
             ctx.fillText("⬅️➡️", rightPinX, pinsY + 3);
 
-            // 5. 떨어지는 아이템 그리기
+            // 6. 아이템 그리기
             fallingItems.forEach(item => item.draw());
 
-            // Game Over 연출
+            // Game Over
             if (isGameOver) {
                 ctx.font = "bold 36px sans-serif";
                 ctx.fillStyle = "#e53e3e";
