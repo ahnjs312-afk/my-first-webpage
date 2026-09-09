@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 st.title("🪢 Rope Balance Catcher (1초 안착 물리 캐치 게임)")
-st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과를 로프 위에 1초 동안 안전하게 얹어 점수를 얻으세요!")
+st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과를 로프 위에 1초 동안 안전하게 얹어 점수를 얻으세요! (먼저 게임 화면을 한 번 클릭해주세요)")
 
 html_code = """
 <!DOCTYPE html>
@@ -52,6 +52,12 @@ html_code = """
             border: 2px solid #e2e8f0;
             border-radius: 12px; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+            outline: none;
+        }
+        .hint {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 6px;
         }
     </style>
 </head>
@@ -61,17 +67,25 @@ html_code = """
         <div class="life-board" id="lives">❤️❤️❤️</div>
         <button onclick="resetGame()">🔄 게임 리셋</button>
     </div>
-    <canvas id="canvas" width="850" height="580"></canvas>
+    <canvas id="canvas" width="850" height="580" tabindex="0"></canvas>
+    <div class="hint">화면을 클릭하면 키보드 입력이 활성화됩니다</div>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+
+        // 캔버스에 포커스를 줘야 iframe 안에서 키 입력이 확실히 잡힘
+        canvas.addEventListener('click', () => canvas.focus());
+        canvas.focus();
 
         const ropeGravity = 0.25;
         const ropeFriction = 0.985;
         const itemGravity = 0.09; // 물체에 적용할 약한 중력
 
         const ropePoints = 22;
+        const restLen = 17;
+        const maxSpan = restLen * (ropePoints - 1) * 0.92; // 로프가 팽팽하게 일직선이 되지 않도록 최대 간격 제한
+
         let leftPinX = 250;
         let rightPinX = 600;
         const pinsY = 320;
@@ -87,9 +101,16 @@ html_code = """
         let isGameOver = false;
 
         const keys = {};
+        const trackedKeys = new Set(['a', 'A', 'd', 'D', 'ArrowLeft', 'ArrowRight']);
 
-        window.addEventListener('keydown', e => { keys[e.key] = true; });
-        window.addEventListener('keyup', e => { keys[e.key] = false; });
+        window.addEventListener('keydown', e => {
+            if (trackedKeys.has(e.key)) e.preventDefault(); // 부모 페이지 스크롤 방지
+            keys[e.key] = true;
+        });
+        window.addEventListener('keyup', e => {
+            if (trackedKeys.has(e.key)) e.preventDefault();
+            keys[e.key] = false;
+        });
 
         class Particle {
             constructor(x, y, isLeftPin = false, isRightPin = false) {
@@ -227,7 +248,6 @@ html_code = """
                 particles.push(new Particle(x, y, isLeftPin, isRightPin));
             }
 
-            let restLen = 17;
             for (let i = 0; i < ropePoints - 1; i++) {
                 constraints.push(new Constraint(particles[i], particles[i + 1], restLen));
             }
@@ -250,6 +270,7 @@ html_code = """
             isGameOver = false;
             initRope();
             updateUI();
+            canvas.focus();
         }
 
         function updateUI() {
@@ -275,7 +296,10 @@ html_code = """
             if (dist < circle.radius + 3) {
                 let nx = dist === 0 ? 0 : distX / dist;
                 let ny = dist === 0 ? -1 : distY / dist;
-                return { dist, nx, ny, projX, projY, t };
+                let segLen = Math.hypot(dx, dy) || 1;
+                let tx = dx / segLen; // 세그먼트 접선 방향(정규화)
+                let ty = dy / segLen;
+                return { dist, nx, ny, tx, ty, projX, projY, t, p1, p2 };
             }
             return null;
         }
@@ -288,6 +312,13 @@ html_code = """
 
             if (keys['ArrowLeft']) rightPinX = Math.max(leftPinX + 60, rightPinX - moveSpeed);
             if (keys['ArrowRight']) rightPinX = Math.min(canvas.width - 30, rightPinX + moveSpeed);
+
+            // 로프가 완전히 팽팽해져 뻣뻣하게 일직선이 되지 않도록 최대 간격 제한
+            if (rightPinX - leftPinX > maxSpan) {
+                let mid = (rightPinX + leftPinX) / 2;
+                leftPinX = mid - maxSpan / 2;
+                rightPinX = mid + maxSpan / 2;
+            }
 
             particles[0].x = leftPinX;
             particles[0].y = pinsY;
@@ -318,30 +349,31 @@ html_code = """
 
                 fallingItems.forEach(item => item.update());
 
-                // 3. 로프와 원형 물체 충돌 처리
+                // 3. 로프와 원형 물체 충돌 처리 (프레임당 가장 가까운 세그먼트 하나만 적용 -> 중복 보정/떨림 방지)
                 fallingItems.forEach(item => {
-                    let touching = false;
+                    let best = null;
 
                     for (let i = 0; i < particles.length - 1; i++) {
-                        let p1 = particles[i];
-                        let p2 = particles[i + 1];
-
-                        let col = checkSegmentCircleCollision(p1, p2, item);
-                        if (col) {
-                            touching = true;
-                            let overlap = (item.radius + 3) - col.dist;
-
-                            item.x += col.nx * overlap;
-                            item.y += col.ny * overlap;
-                            item.vy = -item.vy * 0.2; 
-                            item.vx += (p2.x - p1.x) * 0.02;
-
-                            if (!p1.isLeftPin && !p1.isRightPin) p1.y += 1.8 * (1 - col.t);
-                            if (!p2.isLeftPin && !p2.isRightPin) p2.y += 1.8 * col.t;
+                        let col = checkSegmentCircleCollision(particles[i], particles[i + 1], item);
+                        if (col && (!best || col.dist < best.dist)) {
+                            best = col;
                         }
                     }
 
-                    item.isOnRope = touching;
+                    if (best) {
+                        let overlap = (item.radius + 3) - best.dist;
+                        item.x += best.nx * overlap;
+                        item.y += best.ny * overlap;
+                        item.vy = -item.vy * 0.2;
+
+                        // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨
+                        item.vx += best.tx * best.ty * 0.6;
+
+                        if (!best.p1.isLeftPin && !best.p1.isRightPin) best.p1.y += 1.8 * (1 - best.t);
+                        if (!best.p2.isLeftPin && !best.p2.isRightPin) best.p2.y += 1.8 * best.t;
+                    }
+
+                    item.isOnRope = !!best;
                 });
 
                 // 4. 아이템 1초 안착 / 폭발 / 낙하 판정
@@ -443,4 +475,4 @@ html_code = """
 </html>
 """
 
-components.html(html_code, height=640)
+components.html(html_code, height=680)
