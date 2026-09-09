@@ -101,8 +101,8 @@ html_code = """
         let leftPinVX = 0;   // 좌측 축 관성 속도
         let rightPinVX = 0;  // 우측 축 관성 속도
         const pinsY = 320;
-        const pinAccel = 0.45;    // 키를 누르고 있을 때의 가속도
-        const pinMaxSpeed = 6.5;  // 관성 이동의 최대 속도
+        const pinAccel = 0.55;    // 기존 0.45 -> 가속도 소폭 상향
+        const pinMaxSpeed = 8;    // 기존 6.5 -> 최대 이동 속도 소폭 상향
         const pinFriction = 0.90; // 키를 뗐을 때 속도가 줄어드는 비율(관성 감쇠)
 
         const BASE_SPAWN_INTERVAL = 130;   // 게임 시작 시 아이템 생성 간격(스텝)
@@ -212,6 +212,8 @@ html_code = """
             constructor(x, y, type) {
                 this.x = x;
                 this.y = y;
+                this.prevX = x; // 스윕(swept) 충돌 검사를 위한 이전 스텝 위치
+                this.prevY = y;
                 this.vx = 0; // 가로 쏠림 방지 (직하강)
                 this.vy = 0; 
                 this.type = type; // 'apple', 'star', 'bomb'
@@ -222,6 +224,8 @@ html_code = """
             }
 
             update() {
+                this.prevX = this.x;
+                this.prevY = this.y;
                 this.vy += currentItemGravity;
                 this.x += this.vx;
                 this.y += this.vy;
@@ -306,29 +310,50 @@ html_code = """
             document.getElementById('lives').innerText = hearts || "💀 GAME OVER";
         }
 
-        function checkSegmentCircleCollision(p1, p2, circle) {
-            let dx = p2.x - p1.x;
-            let dy = p2.y - p1.y;
-            let lenSq = dx * dx + dy * dy;
-            if (lenSq === 0) return null;
+        // 두 선분(A: 아이템의 이전->현재 이동 경로, B: 로프 세그먼트) 사이의 최단 거리를 구하는
+        // 표준 "closest points between two segments" 알고리즘 (Ericson, Real-Time Collision Detection).
+        // 이걸로 "이번 프레임에 이동한 경로 전체"가 로프에 얼마나 가까워졌는지 검사하므로,
+        // 한 스텝에 로프 두께보다 더 멀리 이동해서 그냥 통과해버리는 터널링을 방지할 수 있습니다.
+        function closestDistBetweenSegments(p1, q1, p2, q2) {
+            const EPS = 1e-9;
+            let d1x = q1.x - p1.x, d1y = q1.y - p1.y; // 경로 세그먼트 방향
+            let d2x = q2.x - p2.x, d2y = q2.y - p2.y; // 로프 세그먼트 방향
+            let rx = p1.x - p2.x, ry = p1.y - p2.y;
 
-            let t = Math.max(0, Math.min(1, ((circle.x - p1.x) * dx + (circle.y - p1.y) * dy) / lenSq));
-            let projX = p1.x + t * dx;
-            let projY = p1.y + t * dy;
+            let a = d1x * d1x + d1y * d1y;
+            let e = d2x * d2x + d2y * d2y;
+            let f = d2x * rx + d2y * ry;
 
-            let distX = circle.x - projX;
-            let distY = circle.y - projY;
-            let dist = Math.hypot(distX, distY);
-
-            if (dist < circle.radius + 3) {
-                let nx = dist === 0 ? 0 : distX / dist;
-                let ny = dist === 0 ? -1 : distY / dist;
-                let segLen = Math.hypot(dx, dy) || 1;
-                let tx = dx / segLen; // 세그먼트 접선 방향(정규화)
-                let ty = dy / segLen;
-                return { dist, nx, ny, tx, ty, projX, projY, t, p1, p2 };
+            let s, t;
+            if (a <= EPS && e <= EPS) {
+                s = 0; t = 0;
+            } else if (a <= EPS) {
+                s = 0;
+                t = Math.max(0, Math.min(1, f / e));
+            } else {
+                let c = d1x * rx + d1y * ry;
+                if (e <= EPS) {
+                    t = 0;
+                    s = Math.max(0, Math.min(1, -c / a));
+                } else {
+                    let b = d1x * d2x + d1y * d2y;
+                    let denom = a * e - b * b;
+                    s = denom !== 0 ? Math.max(0, Math.min(1, (b * f - c * e) / denom)) : 0;
+                    t = (b * s + f) / e;
+                    if (t < 0) {
+                        t = 0;
+                        s = Math.max(0, Math.min(1, -c / a));
+                    } else if (t > 1) {
+                        t = 1;
+                        s = Math.max(0, Math.min(1, (b - c) / a));
+                    }
+                }
             }
-            return null;
+
+            let c1x = p1.x + d1x * s, c1y = p1.y + d1y * s; // 경로 위 최근접점
+            let c2x = p2.x + d2x * t, c2y = p2.y + d2y * t; // 로프 세그먼트 위 최근접점
+            let dx = c1x - c2x, dy = c1y - c2y;
+            return { dist: Math.hypot(dx, dy), t, dx, dy, c2x, c2y };
         }
 
         resetGame();
@@ -395,21 +420,33 @@ html_code = """
 
             fallingItems.forEach(item => item.update());
 
-            // 3. 로프와 원형 물체 충돌 처리 (스텝당 가장 가까운 세그먼트 하나만 적용 -> 중복 보정/떨림 방지)
+            // 3. 로프와 원형 물체 충돌 처리 — 스윕(swept) 검사
+            // "이전 위치 -> 현재 위치" 이동 경로 선분과 각 로프 세그먼트 사이의 최단 거리를 검사해서,
+            // 이번 스텝에 아이템이 로프를 그냥 통과해버렸는지(터널링)까지 잡아낸다.
             fallingItems.forEach(item => {
                 let best = null;
+                let pathStart = { x: item.prevX, y: item.prevY };
+                let pathEnd = { x: item.x, y: item.y };
 
                 for (let i = 0; i < particles.length - 1; i++) {
-                    let col = checkSegmentCircleCollision(particles[i], particles[i + 1], item);
-                    if (col && (!best || col.dist < best.dist)) {
-                        best = col;
+                    let ropeP1 = particles[i], ropeP2 = particles[i + 1];
+                    let res = closestDistBetweenSegments(pathStart, pathEnd, ropeP1, ropeP2);
+
+                    if (res.dist < item.radius + 3 && (!best || res.dist < best.dist)) {
+                        let segDx = ropeP2.x - ropeP1.x, segDy = ropeP2.y - ropeP1.y;
+                        let segLen = Math.hypot(segDx, segDy) || 1;
+                        let tx = segDx / segLen; // 세그먼트 접선 방향(정규화)
+                        let ty = segDy / segLen;
+                        let nx = res.dist > 1e-6 ? res.dx / res.dist : 0; // 로프 접점 -> 경로 쪽 법선 방향
+                        let ny = res.dist > 1e-6 ? res.dy / res.dist : -1;
+                        best = { dist: res.dist, t: res.t, nx, ny, tx, ty, p1: ropeP1, p2: ropeP2, contactX: res.c2x, contactY: res.c2y };
                     }
                 }
 
                 if (best) {
-                    let overlap = (item.radius + 3) - best.dist;
-                    item.x += best.nx * overlap;
-                    item.y += best.ny * overlap;
+                    // 통과해버린 위치가 아니라, 로프 접점에서 정확히 (radius+3)만큼 떨어진 지점으로 배치
+                    item.x = best.contactX + best.nx * (item.radius + 3);
+                    item.y = best.contactY + best.ny * (item.radius + 3);
                     item.vy = -item.vy * 0.2;
 
                     // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨
