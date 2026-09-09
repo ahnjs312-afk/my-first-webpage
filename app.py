@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 st.title("🪢 Rope Balance Catcher (2초 안착 물리 캐치 게임)")
-st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과를 로프 위에 2초 동안 연속으로 안전하게 얹어 점수를 얻으세요! (먼저 게임 화면을 한 번 클릭해주세요)")
+st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과가 로프 좌우 범위 안에서 2초 동안 머무르게 하면 점수를 얻어요! (먼저 게임 화면을 한 번 클릭해주세요)")
 
 html_code = """
 <!DOCTYPE html>
@@ -90,8 +90,8 @@ html_code = """
         const MAX_ITEM_GRAVITY = 0.09;     // 시간이 지나며 도달하는 최대 낙하 중력
         let currentItemGravity = BASE_ITEM_GRAVITY; // 난이도에 따라 매 스텝 갱신됨
 
-        const SUCCESS_STEPS = 120;         // 성공 판정까지 필요한 스텝 수 (60스텝=1초 -> 120스텝=2초, 로프에서 완전히 이탈하면 리셋됨)
-        const BOUNCE_GRACE_STEPS = 8;      // 로프에 미세하게 튕겨서 순간적으로 떨어져도(이 스텝 이내) 봐주는 유예 시간 (약 0.13초)
+        const SUCCESS_STEPS = 120;         // 성공 판정까지 필요한 스텝 수 (60스텝=1초 -> 120스텝=2초)
+        const XRANGE_MARGIN = 10;          // 로프 x축 판정 범위에 좌우로 살짝 여유를 줌 (아이템 반지름 대비)
 
         const ropePoints = 22;
         const restLen = 17;
@@ -219,10 +219,12 @@ html_code = """
                 this.vy = 0; 
                 this.type = type; // 'apple', 'star', 'bomb'
                 this.radius = type === 'star' ? 15 : 18;
-                this.touchTimer = 0; // 로프 위에 연속으로 머문 스텝 수 (SUCCESS_STEPS = 2초)
+                this.touchTimer = 0; // 로프 위에서 유지한 스텝 수 (SUCCESS_STEPS = 2초)
                 this.isOnRope = false;
-                this.hasTouchedRope = false; // 한 번이라도 닿았는지 여부 (게이지 표시용)
-                this.offRopeStreak = 0; // 로프에서 완전히 떨어져 있던 연속 스텝 수 (미세 바운스 유예 판정용)
+                this.hasTouchedRope = false; // 한 번이라도 로프에 닿았는지 여부. 한 번 닿은 뒤로는
+                                              // 수직으로 튕기거나 잠깐 떠도 상관없이, x좌표가 로프의
+                                              // 좌우 범위(leftPinX ~ rightPinX) 안에 있는 한 계속
+                                              // 카운트가 유지된다 (아래 판정 로직 참고)
             }
 
             update() {
@@ -476,34 +478,28 @@ html_code = """
                 }
 
                 item.isOnRope = anyCollision;
-                if (item.isOnRope) {
-                    item.hasTouchedRope = true;
-                    item.offRopeStreak = 0; // 다시 닿았으니 이탈 카운트 초기화
-                } else if (item.hasTouchedRope) {
-                    // 로프에서 완전히 이탈한 연속 스텝 수를 센다. 미세하게 통통 튀는 정도(예: 그물처럼
-                    // 출렁이는 로프 표면에서 반복적으로 살짝 뜨는 경우)는 BOUNCE_GRACE_STEPS 이내면
-                    // 눈감아주고, 그 이상 완전히 떨어져 있어야만 "연속 안착" 타이머를 리셋한다.
-                    item.offRopeStreak++;
-                    if (item.offRopeStreak > BOUNCE_GRACE_STEPS) {
-                        item.touchTimer = 0;
-                    }
-                }
+                if (item.isOnRope) item.hasTouchedRope = true;
             });
 
-            // 4. 아이템 2초 연속 안착 / 폭발 / 낙하 판정
+            // 4. 아이템 2초 안착 / 폭발 / 낙하 판정
             fallingItems = fallingItems.filter(item => {
                 if (item.type === 'apple' || item.type === 'star') {
-                    // 로프 위에 있거나, 유예 시간 이내로 살짝 튄 상태일 때 타이머가 증가
-                    // (완전히 이탈해서 유예 시간을 넘기면 위 충돌 처리 단계에서 이미 0으로 리셋됨)
-                    if (item.isOnRope || (item.hasTouchedRope && item.offRopeStreak <= BOUNCE_GRACE_STEPS)) {
-                        item.touchTimer++;
-                        // SUCCESS_STEPS(2초) 연속 유지 성공 시 점수 획득
-                        if (item.touchTimer >= SUCCESS_STEPS) {
-                            let color = item.type === 'apple' ? '#22c55e' : '#eab308';
-                            createParticles(item.x, item.y, color, 20);
-                            score += (item.type === 'apple' ? 15 : 35);
-                            updateUI();
-                            return false;
+                    // 한 번이라도 로프에 닿았다면, 이후로는 위아래로 미세하게 튕기거나 로프 표면에서
+                    // 살짝 떠 있어도 상관없이 계속 카운트가 진행된다. x좌표가 로프의 좌우 범위를
+                    // (여유값 XRANGE_MARGIN만큼) 완전히 벗어났을 때만 카운트를 리셋한다.
+                    if (item.hasTouchedRope) {
+                        if (item.x < leftPinX - XRANGE_MARGIN || item.x > rightPinX + XRANGE_MARGIN) {
+                            item.touchTimer = 0;
+                        } else {
+                            item.touchTimer++;
+                            // SUCCESS_STEPS(2초) 유지 성공 시 점수 획득
+                            if (item.touchTimer >= SUCCESS_STEPS) {
+                                let color = item.type === 'apple' ? '#22c55e' : '#eab308';
+                                createParticles(item.x, item.y, color, 20);
+                                score += (item.type === 'apple' ? 15 : 35);
+                                updateUI();
+                                return false;
+                            }
                         }
                     }
                 } else if (item.type === 'bomb') {
