@@ -3,16 +3,28 @@ import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 st.title("🧵 마우스 상호작용 천 시뮬레이션")
-st.caption("마우스 왼쪽 버튼으로 천을 클릭하고 드래그해 보세요!")
+st.caption("마우스로 천을 클릭하고 드래그해 보세요!")
 
 html_code = """
 <!DOCTYPE html>
 <html>
 <head>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #f0f2f6; display: flex; justify-content: center; align-items: center; }
-        canvas { background: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: grab; }
-        canvas:active { cursor: grabbing; }
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #1a1a2e; /* 어두운 남색 배경 */
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+        }
+        canvas { 
+            background: #16213e; /* 캔버스 내부 배경 (짙은 네이비) */
+            border: 2px solid #0f3460;
+            border-radius: 12px; 
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4); 
+            cursor: none; /* 기본 마우스 커서 숨기기 */
+        }
     </style>
 </head>
 <body>
@@ -96,7 +108,10 @@ html_code = """
         }
 
         // 마우스 이벤트
-        let mouse = { x: 0, y: 0 };
+        let mouse = { x: -100, y: -100, isHover: false };
+
+        canvas.addEventListener('mouseenter', () => { mouse.isHover = true; });
+        canvas.addEventListener('mouseleave', () => { mouse.isHover = false; draggedParticle = null; });
 
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
@@ -141,25 +156,36 @@ html_code = """
                 constraints.forEach(c => c.resolve());
             }
 
-            // 선 그리기
+            // 천 (실) 그리기 - 형광 하늘색
             ctx.beginPath();
-            ctx.strokeStyle = '#2B6CB0';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#00f2fe';
+            ctx.lineWidth = 2;
             constraints.forEach(c => {
                 ctx.moveTo(c.p1.x, c.p1.y);
                 ctx.lineTo(c.p2.x, c.p2.y);
             });
             ctx.stroke();
 
-            // 고정점 그리기
+            // 고정점 그리기 - 주황색
             particles.forEach(p => {
                 if (p.pinned) {
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-                    ctx.fillStyle = '#E53E3E';
+                    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ff7675';
                     ctx.fill();
                 }
             });
+
+            // 마우스 커서 맞춤 그리기 - 형광 핑크 포인터
+            if (mouse.isHover) {
+                ctx.beginPath();
+                ctx.arc(mouse.x, mouse.y, draggedParticle ? 8 : 6, 0, Math.PI * 2);
+                ctx.fillStyle = draggedParticle ? '#ff007f' : 'rgba(255, 0, 127, 0.7)';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.fill();
+                ctx.stroke();
+            }
 
             requestAnimationFrame(loop);
         }
