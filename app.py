@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🧺 천 그물망 공 분류 게임 (Compact Net Sorter)")
-st.caption("💡 **마우스 드래그**: 천을 당겨 파란 공(🔵)은 왼쪽 영역, 빨간 공(🔴)은 오른쪽 영역으로 튕겨 내보내세요!")
+st.title("🧺 천 그물망 공 분류 게임 (Collision & Timing Fixed)")
+st.caption("💡 **개선 사항**: 공끼리 부딪히는 물리 충돌 적용 / 다른 색상 공 간 최소 시차 간격 보장!")
 
 html_code = """
 <!DOCTYPE html>
@@ -71,7 +71,6 @@ html_code = """
         const gravity = 0.22;
         const friction = 0.985;
 
-        // 천 크기 및 고정축 설정 수정 (세로 6행, 좌우 고정점 1개씩)
         const cols = 26;
         const rows = 6; 
         const spacing = 19;
@@ -85,6 +84,8 @@ html_code = """
         let score = 0;
         let lives = 3;
         let spawnTimer = 0;
+        let lastColorType = null;
+        let colorCooldowntimer = 0;
         let isGameOver = false;
 
         class Particle {
@@ -178,12 +179,13 @@ html_code = """
             score = 0;
             lives = 3;
             spawnTimer = 0;
+            lastColorType = null;
+            colorCooldowntimer = 0;
             isGameOver = false;
             updateUI();
 
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
-                    // 좌측 맨 끝(c === 0)과 우측 맨 끝(c === cols - 1)의 맨 위(r === 0) 1개씩만 고정 축으로 설정
                     let pinned = (r === 0 && (c === 0 || c === cols - 1));
                     particles.push(new Particle(startX + c * spacing, startY + r * spacing, pinned));
                 }
@@ -243,14 +245,24 @@ html_code = """
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (!isGameOver) {
-                // 1. 물체 생성
+                // 1. [3번 구현] 물체 생성 및 반대 색상 시차 간격 제어
                 spawnTimer++;
-                let spawnInterval = Math.max(45, 110 - Math.floor(score / 40) * 8);
-                if (spawnTimer % spawnInterval === 0) {
-                    let spawnX = startX + 40 + Math.random() * (cols * spacing - 80);
+                colorCooldowntimer++;
+                
+                let baseSpawnInterval = Math.max(50, 110 - Math.floor(score / 40) * 8);
+                if (spawnTimer % baseSpawnInterval === 0) {
                     let rand = Math.random();
-                    let colorType = rand < 0.45 ? 'blue' : (rand < 0.9 ? 'red' : 'gold');
-                    fallingObjects.push(new FallingObject(spawnX, -20, colorType));
+                    let nextColor = rand < 0.45 ? 'blue' : (rand < 0.9 ? 'red' : 'gold');
+
+                    // 이전 공과 다른 색상(파란색↔빨간색)이 연속 등장하면 딜레이(120프레임 약 2초) 보장
+                    let isOpposite = (lastColorType === 'blue' && nextColor === 'red') || (lastColorType === 'red' && nextColor === 'blue');
+                    
+                    if (!isOpposite || colorCooldowntimer > 120) {
+                        let spawnX = startX + 40 + Math.random() * (cols * spacing - 80);
+                        fallingObjects.push(new FallingObject(spawnX, -20, nextColor));
+                        lastColorType = nextColor;
+                        colorCooldowntimer = 0;
+                    }
                 }
 
                 // 2. 물리 업데이트
@@ -289,14 +301,53 @@ html_code = """
                     });
                 });
 
-                // 4. 화면 벽면 및 바닥 수거 판정
+                // 4. [4번 구현] 공과 공 사이의 충돌 (Ball vs Ball Collision)
+                for (let i = 0; i < fallingObjects.length; i++) {
+                    for (let j = i + 1; j < fallingObjects.length; j++) {
+                        let o1 = fallingObjects[i];
+                        let o2 = fallingObjects[j];
+
+                        let dx = o2.x - o1.x;
+                        let dy = o2.y - o1.y;
+                        let dist = Math.hypot(dx, dy);
+                        let minDist = o1.radius + o2.radius;
+
+                        if (dist < minDist && dist > 0) {
+                            let overlap = (minDist - dist) / 2;
+                            let nx = dx / dist;
+                            let ny = dy / dist;
+
+                            // 위치 겹침 해제
+                            o1.x -= nx * overlap;
+                            o1.y -= ny * overlap;
+                            o2.x += nx * overlap;
+                            o2.y += ny * overlap;
+
+                            // 속도/반발력 교환 (밀쳐내기 효과)
+                            let vx1 = o1.x - o1.oldx;
+                            let vy1 = o1.y - o1.oldy;
+                            let vx2 = o2.x - o2.oldx;
+                            let vy2 = o2.y - o2.oldy;
+
+                            let kx = vx1 - vx2;
+                            let ky = vy1 - vy2;
+                            let p = 2 * (nx * kx + ny * ky) / 2;
+
+                            o1.oldx = o1.x - (vx1 - p * nx * 1.2);
+                            o1.oldy = o1.y - (vy1 - p * ny * 1.2);
+                            o2.oldx = o2.x - (vx2 + p * nx * 1.2);
+                            o2.oldy = o2.y - (vy2 + p * ny * 1.2);
+                        }
+                    }
+                }
+
+                // 5. 화면 벽면 및 바닥 수거 판정
                 fallingObjects = fallingObjects.filter(obj => {
                     let isBelowCloth = obj.y > 250;
                     let hitLeftWall = isBelowCloth && (obj.x - obj.radius <= 0);
                     let hitRightWall = isBelowCloth && (obj.x + obj.radius >= canvas.width);
                     let hitBottomFloor = obj.y + obj.radius >= canvas.height;
 
-                    // 왼쪽 수거 판정
                     if (hitLeftWall || (hitBottomFloor && obj.x < canvas.width / 2)) {
                         if (obj.colorType === 'blue' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
                         else { lives--; }
@@ -304,7 +355,6 @@ html_code = """
                         return false;
                     }
 
-                    // 오른쪽 수거 판정
                     if (hitRightWall || (hitBottomFloor && obj.x >= canvas.width / 2)) {
                         if (obj.colorType === 'red' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
                         else { lives--; }
@@ -320,13 +370,12 @@ html_code = """
                 }
             }
 
-            // 5. 시각적 영역 패널
+            // 6. 시각적 영역 패널
             ctx.fillStyle = 'rgba(49, 130, 206, 0.06)';
             ctx.fillRect(0, 0, canvas.width / 2, canvas.height);
             ctx.fillStyle = 'rgba(229, 62, 62, 0.06)';
             ctx.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
 
-            // 중앙 경계 가이드선
             ctx.beginPath();
             ctx.setLineDash([6, 6]);
             ctx.moveTo(canvas.width / 2, 350);
@@ -336,7 +385,6 @@ html_code = """
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // 하단 수거함 가이드 텍스트
             ctx.font = "bold 15px sans-serif";
             ctx.textAlign = "center";
             ctx.fillStyle = "#2b6cb0";
@@ -344,7 +392,7 @@ html_code = """
             ctx.fillStyle = "#c53030";
             ctx.fillText("🔴 우측 영역 (벽 / 바닥)", (canvas.width / 4) * 3, canvas.height - 15);
 
-            // 6. 그리기 - 천 및 고정점
+            // 7. 그리기 - 천 및 고정점
             ctx.beginPath();
             ctx.strokeStyle = '#1a1a1a';
             ctx.lineWidth = 1.8;
@@ -354,7 +402,6 @@ html_code = """
             });
             ctx.stroke();
 
-            // 양쪽 끝 고정축 강조 그리기
             particles.forEach(p => {
                 if (p.pinned) {
                     ctx.beginPath();
@@ -367,7 +414,7 @@ html_code = """
                 }
             });
 
-            // 7. 공 그리기
+            // 8. 공 그리기
             fallingObjects.forEach(obj => obj.draw());
 
             // Game Over 문구
@@ -381,7 +428,7 @@ html_code = """
                 ctx.fillText("상단의 [게임 리셋] 버튼을 눌러 다시 도전하세요!", canvas.width / 2, 300);
             }
 
-            // 8. 마우스 커서
+            // 9. 마우스 커서
             if (mouse.isHover) {
                 ctx.beginPath();
                 ctx.arc(mouse.x, mouse.y, draggedParticle ? 8 : 6, 0, Math.PI * 2);
