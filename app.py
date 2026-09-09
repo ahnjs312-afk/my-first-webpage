@@ -90,12 +90,16 @@ html_code = """
 
         const ropePoints = 22;
         const restLen = 17;
-        const maxSpan = restLen * (ropePoints - 1) * 0.92; // 로프가 팽팽하게 일직선이 되지 않도록 최대 간격 제한
+        // 최대 간격 제한(maxSpan)은 제거 -> 축을 끝까지 벌리면 로프가 팽팽하게 일직선으로 늘어남
 
         let leftPinX = 250;
         let rightPinX = 600;
+        let leftPinVX = 0;   // 좌측 축 관성 속도
+        let rightPinVX = 0;  // 우측 축 관성 속도
         const pinsY = 320;
-        const moveSpeed = 5;           // 기존 8 -> 좌우 축 이동 속도 완화
+        const pinAccel = 0.45;    // 키를 누르고 있을 때의 가속도
+        const pinMaxSpeed = 6.5;  // 관성 이동의 최대 속도
+        const pinFriction = 0.90; // 키를 뗐을 때 속도가 줄어드는 비율(관성 감쇠)
 
         const spawnIntervalSteps = 130; // 기존 75 -> 아이템이 더 뜸하게 등장
 
@@ -271,6 +275,8 @@ html_code = """
         function resetGame() {
             leftPinX = 250;
             rightPinX = 600;
+            leftPinVX = 0;
+            rightPinVX = 0;
             fallingItems = [];
             effects = [];
             score = 0;
@@ -316,18 +322,26 @@ html_code = """
         resetGame();
 
         function handleInput() {
-            if (keys['a'] || keys['A']) leftPinX = Math.max(30, leftPinX - moveSpeed);
-            if (keys['d'] || keys['D']) leftPinX = Math.min(rightPinX - 60, leftPinX + moveSpeed);
+            // 좌측 축 (A/D): 키 입력으로 가속하고, 손을 떼면 서서히 감속(관성)
+            if (keys['a'] || keys['A']) leftPinVX -= pinAccel;
+            if (keys['d'] || keys['D']) leftPinVX += pinAccel;
+            leftPinVX *= pinFriction;
+            leftPinVX = Math.max(-pinMaxSpeed, Math.min(pinMaxSpeed, leftPinVX));
+            leftPinX += leftPinVX;
 
-            if (keys['ArrowLeft']) rightPinX = Math.max(leftPinX + 60, rightPinX - moveSpeed);
-            if (keys['ArrowRight']) rightPinX = Math.min(canvas.width - 30, rightPinX + moveSpeed);
+            // 우측 축 (화살표): 동일한 관성 방식
+            if (keys['ArrowLeft']) rightPinVX -= pinAccel;
+            if (keys['ArrowRight']) rightPinVX += pinAccel;
+            rightPinVX *= pinFriction;
+            rightPinVX = Math.max(-pinMaxSpeed, Math.min(pinMaxSpeed, rightPinVX));
+            rightPinX += rightPinVX;
 
-            // 로프가 완전히 팽팽해져 뻣뻣하게 일직선이 되지 않도록 최대 간격 제한
-            if (rightPinX - leftPinX > maxSpan) {
-                let mid = (rightPinX + leftPinX) / 2;
-                leftPinX = mid - maxSpan / 2;
-                rightPinX = mid + maxSpan / 2;
-            }
+            // 화면 경계 및 두 축이 겹치지 않도록 위치 제한 (경계에 부딪히면 관성 속도 제거)
+            if (leftPinX < 30) { leftPinX = 30; leftPinVX = 0; }
+            if (leftPinX > rightPinX - 60) { leftPinX = rightPinX - 60; leftPinVX = 0; }
+
+            if (rightPinX > canvas.width - 30) { rightPinX = canvas.width - 30; rightPinVX = 0; }
+            if (rightPinX < leftPinX + 60) { rightPinX = leftPinX + 60; rightPinVX = 0; }
 
             particles[0].x = leftPinX;
             particles[0].y = pinsY;
