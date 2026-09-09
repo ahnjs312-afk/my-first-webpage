@@ -2,10 +2,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🧵 마우스 상호작용 가능한 천 시뮬레이션")
-st.caption("마우스 왼쪽 클릭 및 드래그로 천을 잡아당겨 보세요!")
+st.title("🧵 마우스 상호작용 천 시뮬레이션")
+st.caption("마우스 왼쪽 버튼으로 천을 클릭하고 드래그해 보세요!")
 
-# HTML/JS 기반 베를레 적분 천 시뮬레이션 코드
 html_code = """
 <!DOCTYPE html>
 <html>
@@ -30,7 +29,6 @@ html_code = """
         const startY = 50;
         const gravity = 0.2;
         const friction = 0.99;
-        const bounce = 0.9;
 
         let particles = [];
         let constraints = [];
@@ -38,11 +36,11 @@ html_code = """
 
         class Particle {
             constructor(x, y, pinned = false) {
-                self.x = x;
-                self.y = y;
-                self.oldx = x;
-                self.oldy = y;
-                self.pinned = pinned;
+                this.x = x;
+                this.y = y;
+                this.oldx = x;
+                this.oldy = y;
+                this.pinned = pinned;
             }
 
             update() {
@@ -97,16 +95,14 @@ html_code = """
             }
         }
 
-        // 마우스 이벤트 처리
-        let mouse = { x: 0, y: 0, isDown: false };
+        // 마우스 이벤트
+        let mouse = { x: 0, y: 0 };
 
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             mouse.x = e.clientX - rect.left;
             mouse.y = e.clientY - rect.top;
-            mouse.isDown = true;
 
-            // 클릭한 곳과 가장 가까운 입자 찾기
             let minDist = 30;
             particles.forEach(p => {
                 let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
@@ -128,15 +124,13 @@ html_code = """
         });
 
         window.addEventListener('mouseup', () => {
-            mouse.isDown = false;
             draggedParticle = null;
         });
 
-        // 루프 실행
+        // 애니메이션 루프
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 물리 업데이트
             particles.forEach(p => p.update());
             if (draggedParticle) {
                 draggedParticle.x = mouse.x;
@@ -147,9 +141,9 @@ html_code = """
                 constraints.forEach(c => c.resolve());
             }
 
-            // 그리기
+            // 선 그리기
             ctx.beginPath();
-            ctx.strokeStyle = '#4A5568';
+            ctx.strokeStyle = '#2B6CB0';
             ctx.lineWidth = 1.5;
             constraints.forEach(c => {
                 ctx.moveTo(c.p1.x, c.p1.y);
@@ -157,6 +151,7 @@ html_code = """
             });
             ctx.stroke();
 
+            // 고정점 그리기
             particles.forEach(p => {
                 if (p.pinned) {
                     ctx.beginPath();
@@ -175,5 +170,4 @@ html_code = """
 </html>
 """
 
-# HTML 컴포넌트로 화면에 출력
-components.html(html_code, height=520)
+components.html(html_code, height=530)
