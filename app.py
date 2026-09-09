@@ -13,32 +13,33 @@ html_code = """
         body { 
             margin: 0; 
             overflow: hidden; 
-            background-color: #1a1a2e; /* 어두운 남색 배경 */
+            background-color: #f7f9fc; /* 연한 회색 배경 */
             display: flex; 
             justify-content: center; 
             align-items: center; 
         }
         canvas { 
-            background: #16213e; /* 캔버스 내부 배경 (짙은 네이비) */
-            border: 2px solid #0f3460;
+            background: #ffffff; /* 흰색 배경 */
+            border: 2px solid #e2e8f0;
             border-radius: 12px; 
-            box-shadow: 0 8px 16px rgba(0,0,0,0.4); 
-            cursor: none; /* 기본 마우스 커서 숨기기 */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+            cursor: none; /* 기본 커서 숨기기 */
         }
     </style>
 </head>
 <body>
-    <canvas id="canvas" width="700" height="500"></canvas>
+    <canvas id="canvas" width="850" height="600"></canvas>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        const cols = 15;
-        const rows = 12;
-        const spacing = 20;
-        const startX = 200;
-        const startY = 50;
+        // 천 크기 및 입자 수 확장 (가로 25개, 세로 18개)
+        const cols = 25;
+        const rows = 18;
+        const spacing = 22; // 입자 간격
+        const startX = 150;
+        const startY = 40;
         const gravity = 0.2;
         const friction = 0.99;
 
@@ -91,10 +92,16 @@ html_code = """
             }
         }
 
-        // 초기화
+        // 초기화 (맨 위 줄 5개 위치를 고정)
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-                let pinned = (r === 0 && (c === 0 || c === cols - 1 || c === Math.floor(cols/2)));
+                let pinned = (r === 0 && (
+                    c === 0 || 
+                    c === Math.floor((cols - 1) * 0.25) || 
+                    c === Math.floor((cols - 1) * 0.5) || 
+                    c === Math.floor((cols - 1) * 0.75) || 
+                    c === cols - 1
+                ));
                 particles.push(new Particle(startX + c * spacing, startY + r * spacing, pinned));
             }
         }
@@ -118,7 +125,7 @@ html_code = """
             mouse.x = e.clientX - rect.left;
             mouse.y = e.clientY - rect.top;
 
-            let minDist = 30;
+            let minDist = 35;
             particles.forEach(p => {
                 let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
                 if (d < minDist) {
@@ -156,33 +163,33 @@ html_code = """
                 constraints.forEach(c => c.resolve());
             }
 
-            // 천 (실) 그리기 - 형광 하늘색
+            // 천 (실) 그리기 - 검은색 (#1a1a1a)
             ctx.beginPath();
-            ctx.strokeStyle = '#00f2fe';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1.8;
             constraints.forEach(c => {
                 ctx.moveTo(c.p1.x, c.p1.y);
                 ctx.lineTo(c.p2.x, c.p2.y);
             });
             ctx.stroke();
 
-            // 고정점 그리기 - 주황색
+            // 고정점 그리기 - 어두운 회색
             particles.forEach(p => {
                 if (p.pinned) {
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                    ctx.fillStyle = '#ff7675';
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = '#4a5568';
                     ctx.fill();
                 }
             });
 
-            // 마우스 커서 맞춤 그리기 - 형광 핑크 포인터
+            // 마우스 커서 - 빨간색 (#ff2d55)
             if (mouse.isHover) {
                 ctx.beginPath();
                 ctx.arc(mouse.x, mouse.y, draggedParticle ? 8 : 6, 0, Math.PI * 2);
-                ctx.fillStyle = draggedParticle ? '#ff007f' : 'rgba(255, 0, 127, 0.7)';
+                ctx.fillStyle = draggedParticle ? '#ff2d55' : 'rgba(255, 45, 85, 0.7)';
                 ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.5;
+                ctx.lineWidth = 2;
                 ctx.fill();
                 ctx.stroke();
             }
@@ -196,4 +203,4 @@ html_code = """
 </html>
 """
 
-components.html(html_code, height=530)
+components.html(html_code, height=630)
