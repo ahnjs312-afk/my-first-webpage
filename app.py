@@ -10,171 +10,261 @@ html_code = """
 <html>
 <head>
     <style>
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background-color: #f7f9fc; 
-            display: flex; 
+        /* ── 디자인 토큰 ───────────────────────────────────── */
+        :root {
+            --bg:        #f8f9fb;       /* 페이지 배경 */
+            --surface:   #ffffff;       /* 카드·캔버스 */
+            --border:    #e4e7ed;       /* 테두리 */
+            --shadow:    0 2px 16px rgba(0,0,0,0.07);
+
+            --text-primary:   #18181b;  /* 제목·점수 */
+            --text-secondary: #52525b;  /* 설명 본문 */
+            --text-muted:     #a1a1aa;  /* 힌트 */
+
+            --accent:    #6366f1;       /* 로프·강조색 (인디고) */
+            --accent-lt: #eef2ff;       /* 액센트 연한 배경 */
+
+            --pin-l:     #3b82f6;       /* 왼쪽 핀 (파랑) */
+            --pin-r:     #f43f5e;       /* 오른쪽 핀 (로즈) */
+
+            --green:     #22c55e;
+            --yellow:    #eab308;
+            --red:       #ef4444;
+
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+        }
+
+        /* ── 기본 레이아웃 ─────────────────────────────────── */
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: var(--bg);
+            display: flex;
             flex-direction: column;
-            align-items: center; 
+            align-items: center;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-        .ui-panel {
+
+        /* ── 인게임 상단 HUD ───────────────────────────────── */
+        .hud {
             display: flex;
-            gap: 30px;
             align-items: center;
+            gap: 0;
             margin-bottom: 10px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 6px 8px;
+            box-shadow: var(--shadow);
         }
-        .score-board {
-            font-size: 18px;
-            font-weight: bold;
-            color: #1a202c;
+        .hud-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 14px;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary);
         }
-        .life-board {
-            font-size: 18px;
-            font-weight: bold;
-            color: #e53e3e;
+        .hud-divider {
+            width: 1px;
+            height: 22px;
+            background: var(--border);
         }
-        button {
-            background-color: #3182ce;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 6px;
+        .hud-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+        .btn-reset {
+            background: var(--accent-lt);
+            color: var(--accent);
+            border: 1px solid #c7d2fe;
+            padding: 5px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-left: 6px;
+            transition: background 0.15s;
         }
-        button:hover { background-color: #2b6cb0; }
-        canvas { 
-            background: #ffffff; 
-            border: 2px solid #e2e8f0;
-            border-radius: 12px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+        .btn-reset:hover { background: #e0e7ff; }
+
+        /* ── 캔버스 ────────────────────────────────────────── */
+        canvas {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow);
             outline: none;
+            display: block;
         }
+
+        /* ── 힌트 ──────────────────────────────────────────── */
         .hint {
             font-size: 12px;
-            color: #a0aec0;
-            margin-top: 6px;
+            color: var(--text-muted);
+            margin-top: 8px;
         }
+
+        /* ── 로비 오버레이 ─────────────────────────────────── */
+        #lobby {
+            position: absolute;
+            top: 0; left: 0;
+            width: 850px; height: 580px;
+            background: var(--surface);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            user-select: none;
+        }
+
+        /* 로비 타이틀 */
+        .lobby-emoji  { font-size: 48px; margin-bottom: 6px; }
+        .lobby-title  { font-size: 28px; font-weight: 900; color: var(--text-primary); letter-spacing: -0.5px; margin-bottom: 4px; }
+        .lobby-sub    { font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }
+
+        /* 카드 행 */
+        .lobby-cards  { display: flex; gap: 14px; margin-bottom: 28px; }
+        .lobby-card {
+            width: 218px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+        }
+        .card-heading {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+        .card-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+        .card-row:last-child { margin-bottom: 0; }
+        kbd {
+            background: var(--surface);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-bottom-width: 2px;
+            border-radius: 5px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 700;
+            font-family: inherit;
+        }
+        .score-badge {
+            font-weight: 700;
+            font-size: 13px;
+            padding: 1px 7px;
+            border-radius: 99px;
+        }
+        .badge-green  { background: #dcfce7; color: #16a34a; }
+        .badge-yellow { background: #fef9c3; color: #a16207; }
+        .badge-red    { background: #fee2e2; color: #dc2626; }
+
+        /* 시작 버튼 */
+        .btn-start {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 13px 44px;
+            font-size: 16px;
+            font-weight: 800;
+            border-radius: 99px;
+            cursor: pointer;
+            box-shadow: 0 4px 18px rgba(99,102,241,0.35);
+            transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+            letter-spacing: 0.3px;
+        }
+        .btn-start:hover {
+            background: #4f46e5;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(99,102,241,0.45);
+        }
+        .btn-start:active { transform: translateY(0); }
     </style>
 </head>
 <body>
-    <div class="ui-panel">
-        <div class="score-board" id="score">SCORE: 0</div>
-        <div class="life-board" id="lives">❤️❤️❤️</div>
-        <button onclick="resetGame()">🔄 게임 리셋</button>
+
+    <!-- 인게임 HUD -->
+    <div class="hud">
+        <div class="hud-item">
+            <span class="hud-label">SCORE</span>
+            <span id="score">0</span>
+        </div>
+        <div class="hud-divider"></div>
+        <div class="hud-item">
+            <span class="hud-label">LIVES</span>
+            <span id="lives">❤️❤️❤️</span>
+        </div>
+        <button class="btn-reset" onclick="startGame()">🔄 리셋</button>
     </div>
+
+    <!-- 캔버스 + 로비 래퍼 -->
     <div style="position: relative; width: 850px; height: 580px;">
-    <div id="lobby" style="
-        position: absolute;
-        top: 0; left: 0;
-        width: 850px;
-        height: 580px;
-        background: linear-gradient(160deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-        border-radius: 12px;
-        border: 2px solid #e2e8f0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0;
-        z-index: 10;
-        user-select: none;
-    ">
-        <!-- 타이틀 -->
-        <div style="font-size: 52px; margin-bottom: 4px;">🪢</div>
-        <div style="font-size: 30px; font-weight: 900; color: #e9d5ff; letter-spacing: -0.5px; margin-bottom: 4px;">Rope Balance Catcher</div>
-        <div style="font-size: 13px; color: #a78bfa; margin-bottom: 32px;">로프 위에 물체를 2초간 올려놓으면 점수!</div>
 
-        <!-- 설명 카드 -->
-        <div style="
-            display: flex;
-            gap: 16px;
-            margin-bottom: 32px;
-        ">
-            <!-- 조작법 -->
-            <div style="
-                background: rgba(255,255,255,0.06);
-                border: 1px solid rgba(255,255,255,0.12);
-                border-radius: 12px;
-                padding: 18px 24px;
-                width: 220px;
-            ">
-                <div style="font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">🎮 조작</div>
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                    <div style="display:flex;gap:4px;">
-                        <kbd style="background:#334155;color:#e2e8f0;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:700;border:1px solid #475569;">A</kbd>
-                        <kbd style="background:#334155;color:#e2e8f0;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:700;border:1px solid #475569;">D</kbd>
+        <!-- 로비 오버레이 -->
+        <div id="lobby">
+            <div class="lobby-emoji">🪢</div>
+            <div class="lobby-title">Rope Balance Catcher</div>
+            <div class="lobby-sub">로프 위에 물체를 2초간 올려놓으면 점수!</div>
+
+            <div class="lobby-cards">
+                <!-- 조작 -->
+                <div class="lobby-card">
+                    <div class="card-heading">🎮 조작</div>
+                    <div class="card-row">
+                        <span><kbd>A</kbd> <kbd>D</kbd></span>
+                        <span>🔵 왼쪽 축 이동</span>
                     </div>
-                    <span style="color:#cbd5e1;font-size:13px;">🔵 왼쪽 축 이동</span>
-                </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="display:flex;gap:4px;">
-                        <kbd style="background:#334155;color:#e2e8f0;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:700;border:1px solid #475569;">◀</kbd>
-                        <kbd style="background:#334155;color:#e2e8f0;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:700;border:1px solid #475569;">▶</kbd>
+                    <div class="card-row">
+                        <span><kbd>◀</kbd> <kbd>▶</kbd></span>
+                        <span>🔴 오른쪽 축 이동</span>
                     </div>
-                    <span style="color:#cbd5e1;font-size:13px;">🔴 오른쪽 축 이동</span>
+                </div>
+
+                <!-- 아이템 -->
+                <div class="lobby-card">
+                    <div class="card-heading">📦 아이템</div>
+                    <div class="card-row">🍎 사과 — 2초 유지 <span class="score-badge badge-green">+15</span></div>
+                    <div class="card-row">⭐ 별 &nbsp;— 2초 유지 <span class="score-badge badge-yellow">+35</span></div>
+                    <div class="card-row">💣 폭탄 — 닿으면 <span class="score-badge badge-red">-❤️</span></div>
+                </div>
+
+                <!-- 규칙 -->
+                <div class="lobby-card">
+                    <div class="card-heading">📋 규칙</div>
+                    <div class="card-row">❤️ 목숨은 3개</div>
+                    <div class="card-row">🕳️ 사과·별이 떨어지면 <span class="score-badge badge-red">-❤️</span></div>
+                    <div class="card-row">⏱️ 갈수록 빠르고 어려워짐</div>
                 </div>
             </div>
 
-            <!-- 아이템 -->
-            <div style="
-                background: rgba(255,255,255,0.06);
-                border: 1px solid rgba(255,255,255,0.12);
-                border-radius: 12px;
-                padding: 18px 24px;
-                width: 220px;
-            ">
-                <div style="font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">📦 아이템</div>
-                <div style="color:#cbd5e1;font-size:13px;line-height:2;">
-                    🍎 사과 — 로프에 2초 유지 &nbsp;<span style="color:#4ade80;font-weight:700;">+15</span><br>
-                    ⭐ 별 &nbsp; — 로프에 2초 유지 &nbsp;<span style="color:#facc15;font-weight:700;">+35</span><br>
-                    💣 폭탄 — 로프에 닿으면 &nbsp;&nbsp;<span style="color:#f87171;font-weight:700;">-❤️</span>
-                </div>
-            </div>
-
-            <!-- 규칙 -->
-            <div style="
-                background: rgba(255,255,255,0.06);
-                border: 1px solid rgba(255,255,255,0.12);
-                border-radius: 12px;
-                padding: 18px 24px;
-                width: 220px;
-            ">
-                <div style="font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">📋 규칙</div>
-                <div style="color:#cbd5e1;font-size:13px;line-height:2;">
-                    ❤️ 목숨은 3개<br>
-                    🕳️ 사과·별이 떨어지면 <span style="color:#f87171;">-❤️</span><br>
-                    ⏱️ 갈수록 빠르고 어려워짐
-                </div>
-            </div>
+            <button class="btn-start" id="startBtn" onclick="startGame()">▶ 게임 시작</button>
         </div>
 
-        <!-- 시작 버튼 -->
-        <button onclick="startGame()" style="
-            background: linear-gradient(135deg, #7c3aed, #4f46e5);
-            color: white;
-            border: none;
-            padding: 14px 48px;
-            font-size: 18px;
-            font-weight: 800;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 4px 24px rgba(124,58,237,0.5);
-            letter-spacing: 0.5px;
-            transition: transform 0.1s, box-shadow 0.1s;
-        "
-        onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 6px 30px rgba(124,58,237,0.7)'"
-        onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 24px rgba(124,58,237,0.5)'"
-        >▶ 게임 시작</button>
-    </div>
-
-    <canvas id="canvas" width="850" height="580" tabindex="0"></canvas>
+        <canvas id="canvas" width="850" height="580" tabindex="0"></canvas>
     </div><!-- /relative wrapper -->
+
     <div class="hint" id="hint" style="visibility:hidden;">화면을 클릭하면 키보드 입력이 활성화됩니다</div>
 
     <script>
@@ -399,15 +489,18 @@ html_code = """
             }
 
             draw() {
+                // 아이템 배경 원
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                if (this.type === 'apple') ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-                else if (this.type === 'star') ctx.fillStyle = 'rgba(234, 179, 8, 0.2)';
-                else ctx.fillStyle = 'rgba(31, 41, 55, 0.2)';
+                if (this.type === 'apple')      ctx.fillStyle = 'rgba(239,68,68,0.12)';
+                else if (this.type === 'star')  ctx.fillStyle = 'rgba(234,179,8,0.12)';
+                else                            ctx.fillStyle = 'rgba(99,102,241,0.10)';
                 ctx.fill();
 
-                ctx.strokeStyle = this.type === 'apple' ? '#ef4444' : (this.type === 'star' ? '#eab308' : '#1f2937');
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = this.type === 'apple' ? '#ef4444'
+                                : this.type === 'star'  ? '#eab308'
+                                :                         '#6366f1';
+                ctx.lineWidth = 1.5;
                 ctx.stroke();
 
                 ctx.font = "18px sans-serif";
@@ -471,9 +564,8 @@ html_code = """
         }
 
         function updateUI() {
-            document.getElementById('score').innerText = `SCORE: ${score}`;
-            let hearts = "❤️".repeat(lives);
-            document.getElementById('lives').innerText = hearts || "💀 GAME OVER";
+            document.getElementById('score').innerText = score;
+            document.getElementById('lives').innerText = "❤️".repeat(Math.max(0, lives));
         }
 
         // 두 선분(A: 아이템의 이동 경로, B: 로프 세그먼트) 사이의 최단 거리를 구하는
@@ -800,9 +892,9 @@ html_code = """
                 return e.alpha > 0;
             });
 
-            // 로프 그리기
+            // 로프 그리기 — 인디고 계열로 화이트 톤 통일
             ctx.beginPath();
-            ctx.strokeStyle = '#8b5cf6';
+            ctx.strokeStyle = '#6366f1';
             ctx.lineWidth = 5;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -813,32 +905,33 @@ html_code = """
             }
             ctx.stroke();
 
-            // 좌/우 축 (A/D & 화살표)
-            ctx.fillStyle = '#3182ce';
+            // 좌 핀 (파랑)
+            ctx.fillStyle = '#3b82f6';
             ctx.beginPath();
             ctx.arc(leftPinX, pinsY, 12, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#ffffff';
-            ctx.font = "bold 10px sans-serif";
+            ctx.font = "bold 9px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("A/D", leftPinX, pinsY + 3);
+            ctx.textBaseline = "middle";
+            ctx.fillText("A/D", leftPinX, pinsY);
 
-            ctx.fillStyle = '#e53e3e';
+            // 우 핀 (로즈)
+            ctx.fillStyle = '#f43f5e';
             ctx.beginPath();
             ctx.arc(rightPinX, pinsY, 12, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#ffffff';
-            ctx.fillText("⬅️➡️", rightPinX, pinsY + 3);
+            ctx.font = "bold 9px sans-serif";
+            ctx.fillText("◀▶", rightPinX, pinsY);
 
             // 낙하 물체 그리기
             fallingItems.forEach(item => item.draw());
 
             // Game Over — 로비 화면으로 복귀
             if (isGameOver) {
-                // 버튼 텍스트를 "다시 시작"으로 바꾸고 로비를 다시 보여줌
-                const lobby = document.getElementById('lobby');
-                lobby.querySelector('button').textContent = '🔄 다시 시작';
-                lobby.style.display = 'flex';
+                document.getElementById('startBtn').textContent = '🔄 다시 시작';
+                document.getElementById('lobby').style.display = 'flex';
                 document.getElementById('hint').style.visibility = 'hidden';
                 isLobby = true;
                 isGameOver = false;
