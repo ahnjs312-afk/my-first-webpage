@@ -1,121 +1,179 @@
 import streamlit as st
-import numpy as np
-import matplotlib.pyplot as plt
-import time
+import streamlit.components.v1 as components
 
-# 페이지 설정
-st.set_page_config(page_title="Streamlit 천 시뮬레이션", layout="wide")
-st.title("🧵 Streamlit 베를레 적분 천 시뮬레이션")
+st.set_page_config(layout="wide")
+st.title("🧵 마우스 상호작용 가능한 천 시뮬레이션")
+st.caption("마우스 왼쪽 클릭 및 드래그로 천을 잡아당겨 보세요!")
 
-# 사이드바 설정 (물리 파라미터 제어)
-st.sidebar.header("⚙️ 시뮬레이션 설정")
-cols = st.sidebar.slider("가로 입자 수", 5, 20, 10)
-rows = st.sidebar.slider("세로 입자 수", 5, 20, 10)
-gravity = st.sidebar.slider("중력 (Gravity)", 0.0, 2.0, 0.5, step=0.1)
-iterations = st.sidebar.slider("제약 조건 반복 (Stiffness)", 1, 10, 5)
-steps = st.sidebar.slider("총 프레임 수", 50, 300, 150)
+# HTML/JS 기반 베를레 적분 천 시뮬레이션 코드
+html_code = """
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f0f2f6; display: flex; justify-content: center; align-items: center; }
+        canvas { background: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: grab; }
+        canvas:active { cursor: grabbing; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="700" height="500"></canvas>
 
-# 클래스 정의
-class Particle:
-    def __init__(self, x, y, pinned=False):
-        self.x = x
-        self.y = y
-        self.oldx = x
-        self.oldy = y
-        self.pinned = pinned
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
 
-    def update(self, g, dt=1.0):
-        if self.pinned:
-            return
-        vx = self.x - self.oldx
-        vy = self.y - self.oldy
-        self.oldx = self.x
-        self.oldy = self.y
-        self.x += vx
-        self.y += vy - g * dt * dt  # y축이 위쪽을 향하도록 -g 적용
+        const cols = 15;
+        const rows = 12;
+        const spacing = 20;
+        const startX = 200;
+        const startY = 50;
+        const gravity = 0.2;
+        const friction = 0.99;
+        const bounce = 0.9;
 
-class Constraint:
-    def __init__(self, p1, p2):
-        self.p1 = p1
-        self.p2 = p2
-        self.length = np.hypot(p1.x - p2.x, p1.y - p2.y)
+        let particles = [];
+        let constraints = [];
+        let draggedParticle = null;
 
-    def resolve(self):
-        dx = self.p2.x - self.p1.x
-        dy = self.p2.y - self.p1.y
-        dist = np.hypot(dx, dy)
-        if dist == 0:
-            return
-        diff = (self.length - dist) / dist * 0.5
-        off_x = dx * diff
-        off_y = dy * diff
+        class Particle {
+            constructor(x, y, pinned = false) {
+                self.x = x;
+                self.y = y;
+                self.oldx = x;
+                self.oldy = y;
+                self.pinned = pinned;
+            }
 
-        if not self.p1.pinned:
-            self.p1.x -= off_x
-            self.p1.y -= off_y
-        if not self.p2.pinned:
-            self.p2.x += off_x
-            self.p2.y += off_y
+            update() {
+                if (this.pinned) return;
+                let vx = (this.x - this.oldx) * friction;
+                let vy = (this.y - this.oldy) * friction;
+                this.oldx = this.x;
+                this.oldy = this.y;
+                this.x += vx;
+                this.y += vy + gravity;
+            }
+        }
 
-# 시뮬레이션 시작 버튼
-if st.button("🚀 시뮬레이션 시작"):
-    # 입자 및 제약 조건 초기화
-    particles = []
-    constraints = []
-    
-    spacing = 1.0
-    for r in range(rows):
-        row_particles = []
-        for c in range(cols):
-            # 맨 위쪽 양 끝 모서리 입자 고정
-            pinned = (r == 0 and (c == 0 or c == cols - 1))
-            p = Particle(c * spacing, -r * spacing, pinned=pinned)
-            row_particles.append(p)
-        particles.append(row_particles)
+        class Constraint {
+            constructor(p1, p2) {
+                this.p1 = p1;
+                this.p2 = p2;
+                this.length = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            }
 
-    # 제약 조건(스프링) 연결
-    for r in range(rows):
-        for c in range(cols):
-            if c < cols - 1:
-                constraints.append(Constraint(particles[r][c], particles[r][c+1]))
-            if r < rows - 1:
-                constraints.append(Constraint(particles[r][c], particles[r+1][c]))
+            resolve() {
+                let dx = this.p2.x - this.p1.x;
+                let dy = this.p2.y - this.p1.y;
+                let dist = Math.hypot(dx, dy);
+                if (dist === 0) return;
+                let diff = (this.length - dist) / dist * 0.5;
+                
+                if (!this.p1.pinned) {
+                    this.p1.x -= dx * diff;
+                    this.p1.y -= dy * diff;
+                }
+                if (!this.p2.pinned) {
+                    this.p2.x += dx * diff;
+                    this.p2.y += dy * diff;
+                }
+            }
+        }
 
-    # 애니메이션 출력을 위한 Streamlit 빈 요소 생성
-    plot_spot = st.empty()
+        // 초기화
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                let pinned = (r === 0 && (c === 0 || c === cols - 1 || c === Math.floor(cols/2)));
+                particles.push(new Particle(startX + c * spacing, startY + r * spacing, pinned));
+            }
+        }
 
-    # 시뮬레이션 루프
-    for frame in range(steps):
-        # 1. 위치 업데이트 (Verlet Integration)
-        for row in particles:
-            for p in row:
-                p.update(gravity)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                let idx = r * cols + c;
+                if (c < cols - 1) constraints.push(new Constraint(particles[idx], particles[idx + 1]));
+                if (r < rows - 1) constraints.push(new Constraint(particles[idx], particles[idx + cols]));
+            }
+        }
 
-        # 2. 제약 조건 해결 (Relaxation)
-        for _ in range(iterations):
-            for c in constraints:
-                c.resolve()
+        // 마우스 이벤트 처리
+        let mouse = { x: 0, y: 0, isDown: false };
 
-        # 3. Matplotlib을 이용한 그려주기
-        fig, ax = plt.subplots(figsize=(6, 6))
-        ax.set_xlim(-2, cols * spacing + 2)
-        ax.set_ylim(-rows * spacing - 3, 2)
-        ax.set_aspect('equal')
-        ax.axis('off')
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+            mouse.isDown = true;
 
-        # 제약 조건(선) 그리기
-        for c in constraints:
-            ax.plot([c.p1.x, c.p2.x], [c.p1.y, c.p2.y], color='gray', lw=1.5)
+            // 클릭한 곳과 가장 가까운 입자 찾기
+            let minDist = 30;
+            particles.forEach(p => {
+                let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+                if (d < minDist) {
+                    minDist = d;
+                    draggedParticle = p;
+                }
+            });
+        });
 
-        # 고정된 점 강조 표시
-        for row in particles:
-            for p in row:
-                if p.pinned:
-                    ax.plot(p.x, p.y, 'ro', markersize=6)
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+            if (draggedParticle) {
+                draggedParticle.x = mouse.x;
+                draggedParticle.y = mouse.y;
+            }
+        });
 
-        # Streamlit 화면 갱신
-        plot_spot.pyplot(fig)
-        plt.close(fig)
-        time.sleep(0.01)
+        window.addEventListener('mouseup', () => {
+            mouse.isDown = false;
+            draggedParticle = null;
+        });
 
-    st.success("시뮬레이션 완료!")
+        // 루프 실행
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 물리 업데이트
+            particles.forEach(p => p.update());
+            if (draggedParticle) {
+                draggedParticle.x = mouse.x;
+                draggedParticle.y = mouse.y;
+            }
+
+            for (let i = 0; i < 5; i++) {
+                constraints.forEach(c => c.resolve());
+            }
+
+            // 그리기
+            ctx.beginPath();
+            ctx.strokeStyle = '#4A5568';
+            ctx.lineWidth = 1.5;
+            constraints.forEach(c => {
+                ctx.moveTo(c.p1.x, c.p1.y);
+                ctx.lineTo(c.p2.x, c.p2.y);
+            });
+            ctx.stroke();
+
+            particles.forEach(p => {
+                if (p.pinned) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = '#E53E3E';
+                    ctx.fill();
+                }
+            });
+
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
+"""
+
+# HTML 컴포넌트로 화면에 출력
+components.html(html_code, height=520)
