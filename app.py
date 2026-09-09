@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🛡️ 천 그물망 디펜스 (Cloth Net Defense)")
-st.caption("💡 **좌클릭 드래그**: 천을 당겨 물체 튕기기 | ✂️ **우클릭 드래그**: 천 잘라 폭탄 통과시키기 | 📥 **목표**: 물체를 양쪽 수거함에 넣으세요!")
+st.title("🧺 천 그물망 공 분류 게임 (Side Wall Sorter)")
+st.caption("💡 **마우스 드래그**: 천을 당겨 파란 공(🔵)은 왼쪽 벽, 빨간 공(🔴)은 오른쪽 벽으로 튕겨 내보내세요!")
 
 html_code = """
 <!DOCTYPE html>
@@ -21,7 +21,7 @@ html_code = """
         }
         .ui-panel {
             display: flex;
-            gap: 20px;
+            gap: 30px;
             align-items: center;
             margin-bottom: 10px;
         }
@@ -30,7 +30,14 @@ html_code = """
             font-weight: bold;
             color: #1a202c;
         }
-        .btn {
+        .life-board {
+            font-size: 18px;
+            font-weight: bold;
+            color: #e53e3e;
+        }
+        button {
+            background-color: #3182ce;
+            color: white;
             border: none;
             padding: 8px 16px;
             font-size: 14px;
@@ -38,12 +45,8 @@ html_code = """
             border-radius: 6px;
             cursor: pointer;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: all 0.2s;
         }
-        .btn-reset { background-color: #ff3b30; color: white; }
-        .btn-reset:hover { background-color: #e02d22; }
-        .btn-repair { background-color: #34c759; color: white; }
-        .btn-repair:hover { background-color: #28a745; }
+        button:hover { background-color: #2b6cb0; }
         canvas { 
             background: #ffffff; 
             border: 2px solid #e2e8f0;
@@ -56,8 +59,8 @@ html_code = """
 <body>
     <div class="ui-panel">
         <div class="score-board" id="score">SCORE: 0</div>
-        <button class="btn btn-repair" onclick="repairCloth()">🔧 천 복구 (50점 소모)</button>
-        <button class="btn btn-reset" onclick="resetGame()">🔄 게임 리셋</button>
+        <div class="life-board" id="lives">❤️❤️❤️</div>
+        <button onclick="resetGame()">🔄 게임 리셋</button>
     </div>
     <canvas id="canvas" width="850" height="580"></canvas>
 
@@ -68,7 +71,6 @@ html_code = """
         const gravity = 0.22;
         const friction = 0.985;
 
-        // 천 구성 상수 (양끝 상단 고정)
         const cols = 26;
         const rows = 10;
         const spacing = 19;
@@ -78,11 +80,11 @@ html_code = """
         let particles = [];
         let constraints = [];
         let fallingObjects = [];
-        let explosions = [];
         let draggedParticle = null;
-        let isRightClicking = false;
         let score = 0;
+        let lives = 3;
         let spawnTimer = 0;
+        let isGameOver = false;
 
         class Particle {
             constructor(x, y, pinned = false) {
@@ -109,11 +111,9 @@ html_code = """
                 this.p1 = p1;
                 this.p2 = p2;
                 this.length = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                this.active = true;
             }
 
             resolve() {
-                if (!this.active) return;
                 let dx = this.p2.x - this.p1.x;
                 let dy = this.p2.y - this.p1.y;
                 let dist = Math.hypot(dx, dy);
@@ -132,14 +132,13 @@ html_code = """
         }
 
         class FallingObject {
-            constructor(x, y, type) {
+            constructor(x, y, colorType) {
                 this.x = x;
                 this.y = y;
-                this.oldx = x - (Math.random() - 0.5) * 2;
+                this.oldx = x - (Math.random() - 0.5) * 1.5;
                 this.oldy = y - Math.random() * 2;
-                this.type = type; // 'ball', 'gem', 'bomb'
-                this.radius = type === 'gem' ? 14 : (type === 'bomb' ? 18 : 16);
-                this.exploded = false;
+                this.colorType = colorType; // 'blue', 'red', 'gold'
+                this.radius = colorType === 'gold' ? 14 : 16;
             }
 
             update() {
@@ -154,23 +153,18 @@ html_code = """
             draw() {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                if (this.type === 'ball') {
-                    ctx.fillStyle = '#3182ce';
-                } else if (this.type === 'gem') {
-                    ctx.fillStyle = '#805ad5';
-                } else if (this.type === 'bomb') {
-                    ctx.fillStyle = '#e53e3e';
-                }
+                if (this.colorType === 'blue') ctx.fillStyle = '#3182ce';
+                else if (this.colorType === 'red') ctx.fillStyle = '#e53e3e';
+                else if (this.colorType === 'gold') ctx.fillStyle = '#ecc94b';
                 ctx.fill();
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // 아이콘 표시
                 ctx.font = "12px sans-serif";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                let symbol = this.type === 'ball' ? '⚪' : (this.type === 'gem' ? '💎' : '💣');
+                let symbol = this.colorType === 'blue' ? '🔵' : (this.colorType === 'red' ? '🔴' : '⭐');
                 ctx.fillText(symbol, this.x, this.y);
             }
         }
@@ -179,13 +173,13 @@ html_code = """
             particles = [];
             constraints = [];
             fallingObjects = [];
-            explosions = [];
             draggedParticle = null;
             score = 0;
+            lives = 3;
             spawnTimer = 0;
-            document.getElementById('score').innerText = "SCORE: 0";
+            isGameOver = false;
+            updateUI();
 
-            // 양쪽 끝 위쪽 입자 고정
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     let pinned = (r === 0 && (c < 3 || c >= cols - 3));
@@ -202,74 +196,30 @@ html_code = """
             }
         }
 
-        function repairCloth() {
-            if (score >= 50) {
-                let repaired = 0;
-                for (let c of constraints) {
-                    if (!c.active) {
-                        c.active = true;
-                        repaired++;
-                        if (repaired >= 12) break; // 한 번에 최대 12개 실 복구
-                    }
-                }
-                if (repaired > 0) {
-                    score -= 50;
-                    document.getElementById('score').innerText = `SCORE: ${score}`;
-                }
-            }
+        function updateUI() {
+            document.getElementById('score').innerText = `SCORE: ${score}`;
+            let hearts = "❤️".repeat(lives);
+            document.getElementById('lives').innerText = hearts || "💀 GAME OVER";
         }
-
-        function explodeBomb(bomb) {
-            bomb.exploded = true;
-            const blastRadius = 65;
-
-            // 주변 천 끊어내기
-            constraints.forEach(c => {
-                if (c.active) {
-                    let d1 = Math.hypot(c.p1.x - bomb.x, c.p1.y - bomb.y);
-                    let d2 = Math.hypot(c.p2.x - bomb.x, c.p2.y - bomb.y);
-                    if (d1 < blastRadius || d2 < blastRadius) {
-                        c.active = false;
-                    }
-                }
-            });
-
-            explosions.push({ x: bomb.x, y: bomb.y, radius: 5, maxRadius: 50, alpha: 1 });
-        }
-
-        function distToSegment(p, v, w) {
-            let l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
-            if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
-            let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-            t = Math.max(0, Math.min(1, t));
-            return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
-        }
-
-        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
         let mouse = { x: -100, y: -100, isHover: false };
 
         canvas.addEventListener('mouseenter', () => { mouse.isHover = true; });
-        canvas.addEventListener('mouseleave', () => { mouse.isHover = false; draggedParticle = null; isRightClicking = false; });
+        canvas.addEventListener('mouseleave', () => { mouse.isHover = false; draggedParticle = null; });
 
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             mouse.x = e.clientX - rect.left;
             mouse.y = e.clientY - rect.top;
 
-            if (e.button === 0) {
-                let minDist = 35;
-                particles.forEach(p => {
-                    let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
-                    if (d < minDist) {
-                        minDist = d;
-                        draggedParticle = p;
-                    }
-                });
-            } else if (e.button === 2) {
-                isRightClicking = true;
-                cutCloth();
-            }
+            let minDist = 35;
+            particles.forEach(p => {
+                let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+                if (d < minDist) {
+                    minDist = d;
+                    draggedParticle = p;
+                }
+            });
         });
 
         canvas.addEventListener('mousemove', (e) => {
@@ -281,134 +231,121 @@ html_code = """
                 draggedParticle.x = mouse.x;
                 draggedParticle.y = mouse.y;
             }
-
-            if (isRightClicking) {
-                cutCloth();
-            }
         });
 
-        window.addEventListener('mouseup', (e) => {
-            if (e.button === 0) draggedParticle = null;
-            if (e.button === 2) isRightClicking = false;
-        });
-
-        function cutCloth() {
-            const cutRadius = 12;
-            constraints.forEach(c => {
-                if (c.active && distToSegment(mouse, c.p1, c.p2) < cutRadius) {
-                    c.active = false;
-                }
-            });
-        }
+        window.addEventListener('mouseup', () => { draggedParticle = null; });
 
         resetGame();
 
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 물체 생성 (시간이 지나면 간격 단축)
-            spawnTimer++;
-            let spawnInterval = Math.max(40, 110 - Math.floor(score / 50) * 8);
-            if (spawnTimer % spawnInterval === 0) {
-                let spawnX = startX + 40 + Math.random() * (cols * spacing - 80);
-                let rand = Math.random();
-                let type = rand < 0.65 ? 'ball' : (rand < 0.85 ? 'gem' : 'bomb');
-                fallingObjects.push(new FallingObject(spawnX, -20, type));
-            }
-
-            // 2. 물리 업데이트
-            particles.forEach(p => p.update());
-            if (draggedParticle) {
-                draggedParticle.x = mouse.x;
-                draggedParticle.y = mouse.y;
-            }
-
-            for (let i = 0; i < 6; i++) {
-                constraints.forEach(c => c.resolve());
-            }
-
-            fallingObjects.forEach(obj => obj.update());
-
-            // 3. 천-낙하 물체 충돌 처리
-            fallingObjects.forEach(obj => {
-                if (obj.exploded) return;
-
-                particles.forEach(p => {
-                    let dx = p.x - obj.x;
-                    let dy = p.y - obj.y;
-                    let dist = Math.hypot(dx, dy);
-                    let minDist = obj.radius + 6;
-
-                    if (dist < minDist && dist > 0) {
-                        if (obj.type === 'bomb') {
-                            explodeBomb(obj);
-                            return;
-                        }
-
-                        let overlap = minDist - dist;
-                        let nx = dx / dist;
-                        let ny = dy / dist;
-
-                        if (!p.pinned) {
-                            p.x += nx * overlap * 0.65;
-                            p.y += ny * overlap * 0.65;
-                        }
-                        obj.x -= nx * overlap * 0.35;
-                        obj.y -= ny * overlap * 0.35;
-                    }
-                });
-            });
-
-            // 4. 수거함(Score Zone) 검사 & 처리
-            fallingObjects = fallingObjects.filter(obj => {
-                if (obj.exploded) return false;
-
-                // 좌측 수거함 (x: 0~140, y: 460~580) | 우측 수거함 (x: 710~850, y: 460~580)
-                let inLeftZone = (obj.x < 140 && obj.y > 460);
-                let inRightZone = (obj.x > 710 && obj.y > 460);
-
-                if (inLeftZone || inRightZone) {
-                    if (obj.type === 'ball') score += 10;
-                    else if (obj.type === 'gem') score += 30;
-                    else if (obj.type === 'bomb') score = Math.max(0, score - 20);
-
-                    document.getElementById('score').innerText = `SCORE: ${score}`;
-                    return false;
+            if (!isGameOver) {
+                // 1. 물체 생성
+                spawnTimer++;
+                let spawnInterval = Math.max(45, 110 - Math.floor(score / 40) * 8);
+                if (spawnTimer % spawnInterval === 0) {
+                    let spawnX = startX + 40 + Math.random() * (cols * spacing - 80);
+                    let rand = Math.random();
+                    let colorType = rand < 0.45 ? 'blue' : (rand < 0.9 ? 'red' : 'gold');
+                    fallingObjects.push(new FallingObject(spawnX, -20, colorType));
                 }
 
-                // 바닥으로 완전히 떨어진 경우 삭제
-                return obj.y < canvas.height + 30;
-            });
+                // 2. 물리 업데이트
+                particles.forEach(p => p.update());
+                if (draggedParticle) {
+                    draggedParticle.x = mouse.x;
+                    draggedParticle.y = mouse.y;
+                }
 
-            // 5. 그리기 - 수거함 구역
-            ctx.fillStyle = 'rgba(66, 153, 225, 0.15)';
-            ctx.fillRect(0, 460, 140, 120);
-            ctx.fillRect(710, 460, 140, 120);
-            
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#3182ce';
-            ctx.strokeRect(0, 460, 140, 120);
-            ctx.strokeRect(710, 460, 140, 120);
+                for (let i = 0; i < 6; i++) {
+                    constraints.forEach(c => c.resolve());
+                }
 
-            ctx.font = "bold 15px sans-serif";
-            ctx.fillStyle = "#2b6cb0";
+                fallingObjects.forEach(obj => obj.update());
+
+                // 3. 천-공 충돌 처리
+                fallingObjects.forEach(obj => {
+                    particles.forEach(p => {
+                        let dx = p.x - obj.x;
+                        let dy = p.y - obj.y;
+                        let dist = Math.hypot(dx, dy);
+                        let minDist = obj.radius + 6;
+
+                        if (dist < minDist && dist > 0) {
+                            let overlap = minDist - dist;
+                            let nx = dx / dist;
+                            let ny = dy / dist;
+
+                            if (!p.pinned) {
+                                p.x += nx * overlap * 0.65;
+                                p.y += ny * overlap * 0.65;
+                            }
+                            obj.x -= nx * overlap * 0.35;
+                            obj.y -= ny * overlap * 0.35;
+                        }
+                    });
+                });
+
+                // 4. 화면 좌/우 벽면 충돌 및 점수 판정
+                fallingObjects = fallingObjects.filter(obj => {
+                    // 화면 높이 280px 아래에 위치할 때 좌/우 벽면 도달 인정
+                    let isBelowCloth = obj.y > 280;
+                    let hitLeftWall = isBelowCloth && (obj.x - obj.radius <= 0);
+                    let hitRightWall = isBelowCloth && (obj.x + obj.radius >= canvas.width);
+
+                    if (hitLeftWall) {
+                        if (obj.colorType === 'blue' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
+                        else { lives--; }
+                        updateUI();
+                        return false;
+                    }
+
+                    if (hitRightWall) {
+                        if (obj.colorType === 'red' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
+                        else { lives--; }
+                        updateUI();
+                        return false;
+                    }
+
+                    // 수거함 대신 바닥(아래)으로 낙하한 경우
+                    if (obj.y > canvas.height + 20) {
+                        lives--;
+                        updateUI();
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                if (lives <= 0) {
+                    isGameOver = true;
+                }
+            }
+
+            // 5. 시각적 안내 가이드 (화면 좌/우 벽면 패널)
+            ctx.fillStyle = 'rgba(49, 130, 206, 0.08)';
+            ctx.fillRect(0, 0, 40, canvas.height);
+            ctx.fillStyle = 'rgba(229, 62, 62, 0.08)';
+            ctx.fillRect(canvas.width - 40, 0, 40, canvas.height);
+
+            ctx.font = "bold 16px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("📥 수거함", 70, 520);
-            ctx.fillText("📥 수거함", 780, 520);
+            ctx.fillStyle = "#2b6cb0";
+            ctx.fillText("⬅️ 🔵", 20, canvas.height / 2);
+            ctx.fillStyle = "#c53030";
+            ctx.fillText("🔴 ➡️", canvas.width - 20, canvas.height / 2);
 
-            // 6. 그리기 - 천
+            // 6. 그리기 - 천 및 고정점
             ctx.beginPath();
             ctx.strokeStyle = '#1a1a1a';
             ctx.lineWidth = 1.8;
             constraints.forEach(c => {
-                if (c.active) {
-                    ctx.moveTo(c.p1.x, c.p1.y);
-                    ctx.lineTo(c.p2.x, c.p2.y);
-                }
+                ctx.moveTo(c.p1.x, c.p1.y);
+                ctx.lineTo(c.p2.x, c.p2.y);
             });
             ctx.stroke();
 
-            // 고정점
             particles.forEach(p => {
                 if (p.pinned) {
                     ctx.beginPath();
@@ -418,25 +355,25 @@ html_code = """
                 }
             });
 
-            // 7. 그리기 - 낙하 물체
+            // 7. 공 그리기
             fallingObjects.forEach(obj => obj.draw());
 
-            // 8. 그리기 - 폭발 이펙트
-            explosions.forEach(exp => {
-                ctx.beginPath();
-                ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(229, 62, 62, ${exp.alpha})`;
-                ctx.fill();
-                exp.radius += 3;
-                exp.alpha -= 0.05;
-            });
-            explosions = explosions.filter(exp => exp.alpha > 0);
+            // Game Over 문구
+            if (isGameOver) {
+                ctx.font = "bold 36px sans-serif";
+                ctx.fillStyle = "#e53e3e";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, 260);
+                ctx.font = "18px sans-serif";
+                ctx.fillStyle = "#4a5568";
+                ctx.fillText("상단의 [게임 리셋] 버튼을 눌러 다시 도전하세요!", canvas.width / 2, 300);
+            }
 
-            // 9. 커서 표시
+            // 8. 마우스 커서
             if (mouse.isHover) {
                 ctx.beginPath();
-                ctx.arc(mouse.x, mouse.y, isRightClicking ? 12 : (draggedParticle ? 8 : 6), 0, Math.PI * 2);
-                ctx.fillStyle = isRightClicking ? 'rgba(255, 59, 48, 0.2)' : (draggedParticle ? '#ff2d55' : 'rgba(255, 45, 85, 0.7)');
+                ctx.arc(mouse.x, mouse.y, draggedParticle ? 8 : 6, 0, Math.PI * 2);
+                ctx.fillStyle = draggedParticle ? '#ff2d55' : 'rgba(255, 45, 85, 0.7)';
                 ctx.strokeStyle = '#ff2d55';
                 ctx.lineWidth = 1.5;
                 ctx.fill();
