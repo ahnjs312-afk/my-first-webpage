@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🧺 천 그물망 공 분류 게임 (Collision & Timing Fixed)")
-st.caption("💡 **개선 사항**: 공끼리 부딪히는 물리 충돌 적용 / 다른 색상 공 간 최소 시차 간격 보장!")
+st.title("🧺 Dual-Axis Cloth Catcher (두 손으로 잡는 천 게임)")
+st.caption("💡 **조작법**: [좌측 축] `A` / `D` 키 | [우측 축] `⬅️` / `➡️` 화살표 키 | 천을 조율해 폭탄을 피하고 물건을 받아내세요!")
 
 html_code = """
 <!DOCTYPE html>
@@ -52,7 +52,6 @@ html_code = """
             border: 2px solid #e2e8f0;
             border-radius: 12px; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
-            cursor: none; 
         }
     </style>
 </head>
@@ -68,37 +67,42 @@ html_code = """
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        const gravity = 0.22;
-        const friction = 0.985;
+        const gravity = 0.25;
+        const friction = 0.98;
 
-        const cols = 26;
-        const rows = 6; 
-        const spacing = 19;
-        const startX = 180;
-        const startY = 180;
+        const cols = 20;
+        const rows = 5;
+        
+        let leftPinX = 250;
+        let rightPinX = 600;
+        const pinsY = 320;
+        const moveSpeed = 7;
 
         let particles = [];
         let constraints = [];
-        let fallingObjects = [];
-        let draggedParticle = null;
+        let fallingItems = [];
         let score = 0;
         let lives = 3;
         let spawnTimer = 0;
-        let lastColorType = null;
-        let colorCooldowntimer = 0;
         let isGameOver = false;
 
+        const keys = {};
+
+        window.addEventListener('keydown', e => { keys[e.key] = true; });
+        window.addEventListener('keyup', e => { keys[e.key] = false; });
+
         class Particle {
-            constructor(x, y, pinned = false) {
+            constructor(x, y, isLeftPin = false, isRightPin = false) {
                 this.x = x;
                 this.y = y;
                 this.oldx = x;
                 this.oldy = y;
-                this.pinned = pinned;
+                this.isLeftPin = isLeftPin;
+                this.isRightPin = isRightPin;
             }
 
             update() {
-                if (this.pinned) return;
+                if (this.isLeftPin || this.isRightPin) return;
                 let vx = (this.x - this.oldx) * friction;
                 let vy = (this.y - this.oldy) * friction;
                 this.oldx = this.x;
@@ -109,10 +113,10 @@ html_code = """
         }
 
         class Constraint {
-            constructor(p1, p2) {
+            constructor(p1, p2, restLength) {
                 this.p1 = p1;
                 this.p2 = p2;
-                this.length = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                this.length = restLength;
             }
 
             resolve() {
@@ -121,83 +125,76 @@ html_code = """
                 let dist = Math.hypot(dx, dy);
                 if (dist === 0) return;
                 let diff = (this.length - dist) / dist * 0.5;
-                
-                if (!this.p1.pinned) {
+
+                if (!this.p1.isLeftPin && !this.p1.isRightPin) {
                     this.p1.x -= dx * diff;
                     this.p1.y -= dy * diff;
                 }
-                if (!this.p2.pinned) {
+                if (!this.p2.isLeftPin && !this.p2.isRightPin) {
                     this.p2.x += dx * diff;
                     this.p2.y += dy * diff;
                 }
             }
         }
 
-        class FallingObject {
-            constructor(x, y, colorType) {
+        class FallingItem {
+            constructor(x, y, type) {
                 this.x = x;
                 this.y = y;
-                this.oldx = x - (Math.random() - 0.5) * 1.5;
-                this.oldy = y - Math.random() * 2;
-                this.colorType = colorType; // 'blue', 'red', 'gold'
-                this.radius = colorType === 'gold' ? 14 : 16;
+                this.vy = 1.5 + Math.random() * 1.5;
+                this.type = type; // 'apple', 'star', 'bomb'
+                this.radius = 16;
+                this.caught = false;
             }
 
             update() {
-                let vx = (this.x - this.oldx) * 0.99;
-                let vy = (this.y - this.oldy) * 0.99;
-                this.oldx = this.x;
-                this.oldy = this.y;
-                this.x += vx;
-                this.y += vy + gravity * 0.8;
+                this.y += this.vy;
             }
 
             draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                if (this.colorType === 'blue') ctx.fillStyle = '#3182ce';
-                else if (this.colorType === 'red') ctx.fillStyle = '#e53e3e';
-                else if (this.colorType === 'gold') ctx.fillStyle = '#ecc94b';
-                ctx.fill();
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                ctx.font = "12px sans-serif";
+                ctx.font = "20px sans-serif";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                let symbol = this.colorType === 'blue' ? '🔵' : (this.colorType === 'red' ? '🔴' : '⭐');
+                let symbol = this.type === 'apple' ? '🍎' : (this.type === 'star' ? '⭐' : '💣');
                 ctx.fillText(symbol, this.x, this.y);
             }
         }
 
-        function resetGame() {
+        function initCloth() {
             particles = [];
             constraints = [];
-            fallingObjects = [];
-            draggedParticle = null;
-            score = 0;
-            lives = 3;
-            spawnTimer = 0;
-            lastColorType = null;
-            colorCooldowntimer = 0;
-            isGameOver = false;
-            updateUI();
+            let widthStep = (rightPinX - leftPinX) / (cols - 1);
 
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
-                    let pinned = (r === 0 && (c === 0 || c === cols - 1));
-                    particles.push(new Particle(startX + c * spacing, startY + r * spacing, pinned));
+                    let isLeftPin = (r === 0 && c === 0);
+                    let isRightPin = (r === 0 && c === cols - 1);
+                    let x = leftPinX + c * widthStep;
+                    let y = pinsY + r * 15;
+                    particles.push(new Particle(x, y, isLeftPin, isRightPin));
                 }
             }
 
+            let restLen = 18;
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     let idx = r * cols + c;
-                    if (c < cols - 1) constraints.push(new Constraint(particles[idx], particles[idx + 1]));
-                    if (r < rows - 1) constraints.push(new Constraint(particles[idx], particles[idx + cols]));
+                    if (c < cols - 1) constraints.push(new Constraint(particles[idx], particles[idx + 1], restLen));
+                    if (r < rows - 1) constraints.push(new Constraint(particles[idx], particles[idx + cols], restLen));
                 }
             }
+        }
+
+        function resetGame() {
+            leftPinX = 250;
+            rightPinX = 600;
+            fallingItems = [];
+            score = 0;
+            lives = 3;
+            spawnTimer = 0;
+            isGameOver = false;
+            initCloth();
+            updateUI();
         }
 
         function updateUI() {
@@ -206,237 +203,127 @@ html_code = """
             document.getElementById('lives').innerText = hearts || "💀 GAME OVER";
         }
 
-        let mouse = { x: -100, y: -100, isHover: false };
-
-        canvas.addEventListener('mouseenter', () => { mouse.isHover = true; });
-        canvas.addEventListener('mouseleave', () => { mouse.isHover = false; draggedParticle = null; });
-
-        canvas.addEventListener('mousedown', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            mouse.x = e.clientX - rect.left;
-            mouse.y = e.clientY - rect.top;
-
-            let minDist = 35;
-            particles.forEach(p => {
-                let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
-                if (d < minDist) {
-                    minDist = d;
-                    draggedParticle = p;
-                }
-            });
-        });
-
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            mouse.x = e.clientX - rect.left;
-            mouse.y = e.clientY - rect.top;
-
-            if (draggedParticle) {
-                draggedParticle.x = mouse.x;
-                draggedParticle.y = mouse.y;
-            }
-        });
-
-        window.addEventListener('mouseup', () => { draggedParticle = null; });
-
         resetGame();
+
+        function handleInput() {
+            // 좌측 축 조작 (A / D)
+            if (keys['a'] || keys['A']) leftPinX = Math.max(30, leftPinX - moveSpeed);
+            if (keys['d'] || keys['D']) leftPinX = Math.min(rightPinX - 60, leftPinX + moveSpeed);
+
+            // 우측 축 조작 (화살표 ⬅️ / ➡️)
+            if (keys['ArrowLeft']) rightPinX = Math.max(leftPinX + 60, rightPinX - moveSpeed);
+            if (keys['ArrowRight']) rightPinX = Math.min(canvas.width - 30, rightPinX + moveSpeed);
+
+            // 핀 위치 연동
+            particles[0].x = leftPinX;
+            particles[0].y = pinsY;
+            particles[cols - 1].x = rightPinX;
+            particles[cols - 1].y = pinsY;
+        }
 
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (!isGameOver) {
-                // 1. [3번 구현] 물체 생성 및 반대 색상 시차 간격 제어
-                spawnTimer++;
-                colorCooldowntimer++;
-                
-                let baseSpawnInterval = Math.max(50, 110 - Math.floor(score / 40) * 8);
-                if (spawnTimer % baseSpawnInterval === 0) {
-                    let rand = Math.random();
-                    let nextColor = rand < 0.45 ? 'blue' : (rand < 0.9 ? 'red' : 'gold');
+                handleInput();
 
-                    // 이전 공과 다른 색상(파란색↔빨간색)이 연속 등장하면 딜레이(120프레임 약 2초) 보장
-                    let isOpposite = (lastColorType === 'blue' && nextColor === 'red') || (lastColorType === 'red' && nextColor === 'blue');
-                    
-                    if (!isOpposite || colorCooldowntimer > 120) {
-                        let spawnX = startX + 40 + Math.random() * (cols * spacing - 80);
-                        fallingObjects.push(new FallingObject(spawnX, -20, nextColor));
-                        lastColorType = nextColor;
-                        colorCooldowntimer = 0;
-                    }
+                // 1. 아이템 생성
+                spawnTimer++;
+                if (spawnTimer % 65 === 0) {
+                    let spawnX = 80 + Math.random() * (canvas.width - 160);
+                    let rand = Math.random();
+                    let type = rand < 0.6 ? 'apple' : (rand < 0.8 ? 'star' : 'bomb');
+                    fallingItems.push(new FallingItem(spawnX, -20, type));
                 }
 
                 // 2. 물리 업데이트
                 particles.forEach(p => p.update());
-                if (draggedParticle) {
-                    draggedParticle.x = mouse.x;
-                    draggedParticle.y = mouse.y;
-                }
-
-                for (let i = 0; i < 6; i++) {
+                for (let i = 0; i < 5; i++) {
                     constraints.forEach(c => c.resolve());
                 }
 
-                fallingObjects.forEach(obj => obj.update());
+                fallingItems.forEach(item => item.update());
 
-                // 3. 천-공 충돌 처리
-                fallingObjects.forEach(obj => {
+                // 3. 천-아이템 충돌 및 수거 처리
+                fallingItems = fallingItems.filter(item => {
+                    let caughtByCloth = false;
+
                     particles.forEach(p => {
-                        let dx = p.x - obj.x;
-                        let dy = p.y - obj.y;
+                        let dx = p.x - item.x;
+                        let dy = p.y - item.y;
                         let dist = Math.hypot(dx, dy);
-                        let minDist = obj.radius + 6;
 
-                        if (dist < minDist && dist > 0) {
-                            let overlap = minDist - dist;
-                            let nx = dx / dist;
-                            let ny = dy / dist;
-
-                            if (!p.pinned) {
-                                p.x += nx * overlap * 0.65;
-                                p.y += ny * overlap * 0.65;
+                        if (dist < item.radius + 10) {
+                            caughtByCloth = true;
+                            if (!p.isLeftPin && !p.isRightPin) {
+                                p.y += 12; // 천이 우묵하게 눌리는 효과
                             }
-                            obj.x -= nx * overlap * 0.35;
-                            obj.y -= ny * overlap * 0.35;
                         }
                     });
-                });
 
-                // 4. [4번 구현] 공과 공 사이의 충돌 (Ball vs Ball Collision)
-                for (let i = 0; i < fallingObjects.length; i++) {
-                    for (let j = i + 1; j < fallingObjects.length; j++) {
-                        let o1 = fallingObjects[i];
-                        let o2 = fallingObjects[j];
+                    if (caughtByCloth) {
+                        if (item.type === 'apple') score += 10;
+                        else if (item.type === 'star') score += 25;
+                        else if (item.type === 'bomb') lives--;
 
-                        let dx = o2.x - o1.x;
-                        let dy = o2.y - o1.y;
-                        let dist = Math.hypot(dx, dy);
-                        let minDist = o1.radius + o2.radius;
+                        updateUI();
+                        return false; // 수거 완료되어 화면에서 삭제
+                    }
 
-                        if (dist < minDist && dist > 0) {
-                            let overlap = (minDist - dist) / 2;
-                            let nx = dx / dist;
-                            let ny = dy / dist;
-
-                            // 위치 겹침 해제
-                            o1.x -= nx * overlap;
-                            o1.y -= ny * overlap;
-                            o2.x += nx * overlap;
-                            o2.y += ny * overlap;
-
-                            // 속도/반발력 교환 (밀쳐내기 효과)
-                            let vx1 = o1.x - o1.oldx;
-                            let vy1 = o1.y - o1.oldy;
-                            let vx2 = o2.x - o2.oldx;
-                            let vy2 = o2.y - o2.oldy;
-
-                            let kx = vx1 - vx2;
-                            let ky = vy1 - vy2;
-                            let p = 2 * (nx * kx + ny * ky) / 2;
-
-                            o1.oldx = o1.x - (vx1 - p * nx * 1.2);
-                            o1.oldy = o1.y - (vy1 - p * ny * 1.2);
-                            o2.oldx = o2.x - (vx2 + p * nx * 1.2);
-                            o2.oldy = o2.y - (vy2 + p * ny * 1.2);
+                    // 바닥 낙하 처리
+                    if (item.y > canvas.height + 20) {
+                        if (item.type === 'apple' || item.type === 'star') {
+                            lives--;
+                            updateUI();
                         }
-                    }
-                }
-
-                // 5. 화면 벽면 및 바닥 수거 판정
-                fallingObjects = fallingObjects.filter(obj => {
-                    let isBelowCloth = obj.y > 250;
-                    let hitLeftWall = isBelowCloth && (obj.x - obj.radius <= 0);
-                    let hitRightWall = isBelowCloth && (obj.x + obj.radius >= canvas.width);
-                    let hitBottomFloor = obj.y + obj.radius >= canvas.height;
-
-                    if (hitLeftWall || (hitBottomFloor && obj.x < canvas.width / 2)) {
-                        if (obj.colorType === 'blue' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
-                        else { lives--; }
-                        updateUI();
-                        return false;
-                    }
-
-                    if (hitRightWall || (hitBottomFloor && obj.x >= canvas.width / 2)) {
-                        if (obj.colorType === 'red' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
-                        else { lives--; }
-                        updateUI();
                         return false;
                     }
 
                     return true;
                 });
 
-                if (lives <= 0) {
-                    isGameOver = true;
-                }
+                if (lives <= 0) isGameOver = true;
             }
 
-            // 6. 시각적 영역 패널
-            ctx.fillStyle = 'rgba(49, 130, 206, 0.06)';
-            ctx.fillRect(0, 0, canvas.width / 2, canvas.height);
-            ctx.fillStyle = 'rgba(229, 62, 62, 0.06)';
-            ctx.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
-
+            // 4. 시각 가이드 및 천 그리기
             ctx.beginPath();
-            ctx.setLineDash([6, 6]);
-            ctx.moveTo(canvas.width / 2, 350);
-            ctx.lineTo(canvas.width / 2, canvas.height);
-            ctx.strokeStyle = '#cbd5e0';
+            ctx.strokeStyle = '#2d3748';
             ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            ctx.font = "bold 15px sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillStyle = "#2b6cb0";
-            ctx.fillText("🔵 좌측 영역 (벽 / 바닥)", canvas.width / 4, canvas.height - 15);
-            ctx.fillStyle = "#c53030";
-            ctx.fillText("🔴 우측 영역 (벽 / 바닥)", (canvas.width / 4) * 3, canvas.height - 15);
-
-            // 7. 그리기 - 천 및 고정점
-            ctx.beginPath();
-            ctx.strokeStyle = '#1a1a1a';
-            ctx.lineWidth = 1.8;
             constraints.forEach(c => {
                 ctx.moveTo(c.p1.x, c.p1.y);
                 ctx.lineTo(c.p2.x, c.p2.y);
             });
             ctx.stroke();
 
-            particles.forEach(p => {
-                if (p.pinned) {
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-                    ctx.fillStyle = '#2d3748';
-                    ctx.fill();
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                }
-            });
+            // 축 표시 (핸들)
+            ctx.fillStyle = '#3182ce';
+            ctx.beginPath();
+            ctx.arc(leftPinX, pinsY, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = "bold 10px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("A/D", leftPinX, pinsY + 3);
 
-            // 8. 공 그리기
-            fallingObjects.forEach(obj => obj.draw());
+            ctx.fillStyle = '#e53e3e';
+            ctx.beginPath();
+            ctx.arc(rightPinX, pinsY, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText("⬅️➡️", rightPinX, pinsY + 3);
 
-            // Game Over 문구
+            // 5. 떨어지는 아이템 그리기
+            fallingItems.forEach(item => item.draw());
+
+            // Game Over 연출
             if (isGameOver) {
                 ctx.font = "bold 36px sans-serif";
                 ctx.fillStyle = "#e53e3e";
                 ctx.textAlign = "center";
-                ctx.fillText("GAME OVER", canvas.width / 2, 260);
+                ctx.fillText("GAME OVER", canvas.width / 2, 230);
                 ctx.font = "18px sans-serif";
                 ctx.fillStyle = "#4a5568";
-                ctx.fillText("상단의 [게임 리셋] 버튼을 눌러 다시 도전하세요!", canvas.width / 2, 300);
-            }
-
-            // 9. 마우스 커서
-            if (mouse.isHover) {
-                ctx.beginPath();
-                ctx.arc(mouse.x, mouse.y, draggedParticle ? 8 : 6, 0, Math.PI * 2);
-                ctx.fillStyle = draggedParticle ? '#ff2d55' : 'rgba(255, 45, 85, 0.7)';
-                ctx.strokeStyle = '#ff2d55';
-                ctx.lineWidth = 1.5;
-                ctx.fill();
-                ctx.stroke();
+                ctx.fillText("상단의 [게임 리셋] 버튼을 눌러 다시 시작하세요!", canvas.width / 2, 270);
             }
 
             requestAnimationFrame(loop);
