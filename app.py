@@ -86,7 +86,11 @@ html_code = """
 
         const ropeGravity = 0.16;      // 기존 0.25 -> 로프가 더 완만하게 출렁임
         const ropeFriction = 0.985;
-        const itemGravity = 0.045;     // 기존 0.09 -> 물체가 더 천천히 낙하
+        const BASE_ITEM_GRAVITY = 0.045;   // 게임 시작 시 낙하 중력
+        const MAX_ITEM_GRAVITY = 0.09;     // 시간이 지나며 도달하는 최대 낙하 중력
+        let currentItemGravity = BASE_ITEM_GRAVITY; // 난이도에 따라 매 스텝 갱신됨
+
+        const SUCCESS_STEPS = 120;         // 성공 판정까지 필요한 스텝 수 (60스텝=1초 -> 120스텝=2초)
 
         const ropePoints = 22;
         const restLen = 17;
@@ -101,7 +105,13 @@ html_code = """
         const pinMaxSpeed = 6.5;  // 관성 이동의 최대 속도
         const pinFriction = 0.90; // 키를 뗐을 때 속도가 줄어드는 비율(관성 감쇠)
 
-        const spawnIntervalSteps = 130; // 기존 75 -> 아이템이 더 뜸하게 등장
+        const BASE_SPAWN_INTERVAL = 130;   // 게임 시작 시 아이템 생성 간격(스텝)
+        const MIN_SPAWN_INTERVAL = 55;     // 시간이 지나며 도달하는 최소 생성 간격(더 자주 등장)
+        const BASE_BOMB_CHANCE = 0.20;     // 게임 시작 시 폭탄 등장 확률
+        const MAX_BOMB_CHANCE = 0.40;      // 시간이 지나며 도달하는 최대 폭탄 확률
+        const DIFFICULTY_RAMP_STEPS = 60 * 90; // 90초에 걸쳐 최대 난이도에 도달
+
+        let gameSteps = 0; // 게임 시작 후 누적 스텝 수 (난이도 스케일링 기준)
 
         let particles = [];
         let constraints = [];
@@ -206,13 +216,13 @@ html_code = """
                 this.vy = 0; 
                 this.type = type; // 'apple', 'star', 'bomb'
                 this.radius = type === 'star' ? 15 : 18;
-                this.touchTimer = 0; // 60스텝 = 1초
+                this.touchTimer = 0; // SUCCESS_STEPS 스텝 = 2초
                 this.isOnRope = false;
                 this.hasTouchedRope = false; // 한 번이라도 닿았는지 여부 (한 번 닿으면 계속 카운트)
             }
 
             update() {
-                this.vy += itemGravity;
+                this.vy += currentItemGravity;
                 this.x += this.vx;
                 this.y += this.vy;
                 this.vx *= 0.98;
@@ -236,9 +246,9 @@ html_code = """
                 let symbol = this.type === 'apple' ? '🍎' : (this.type === 'star' ? '⭐' : '💣');
                 ctx.fillText(symbol, this.x, this.y);
 
-                // 1초(60스텝) 안착 타이머 게이지 (한 번 닿았으면 로프에서 떨어져도 계속 표시됨)
+                // 안착 타이머 게이지 (한 번 닿았으면 로프에서 떨어져도 계속 표시됨)
                 if (this.hasTouchedRope && (this.type === 'apple' || this.type === 'star')) {
-                    let progress = Math.min(1.0, this.touchTimer / 60);
+                    let progress = Math.min(1.0, this.touchTimer / SUCCESS_STEPS);
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, this.radius + 5, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * progress));
                     ctx.strokeStyle = this.type === 'apple' ? '#22c55e' : '#3b82f6';
@@ -277,6 +287,8 @@ html_code = """
             rightPinX = 600;
             leftPinVX = 0;
             rightPinVX = 0;
+            gameSteps = 0;
+            currentItemGravity = BASE_ITEM_GRAVITY;
             fallingItems = [];
             effects = [];
             score = 0;
@@ -353,14 +365,25 @@ html_code = """
         function step() {
             if (isGameOver) return;
 
+            gameSteps++;
+
+            // 난이도 스케일링: 게임이 진행될수록(DIFFICULTY_RAMP_STEPS 동안) 서서히 어려워짐
+            let difficulty = Math.min(1, gameSteps / DIFFICULTY_RAMP_STEPS);
+            let currentSpawnInterval = Math.round(
+                BASE_SPAWN_INTERVAL - (BASE_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL) * difficulty
+            );
+            let currentBombChance = BASE_BOMB_CHANCE + (MAX_BOMB_CHANCE - BASE_BOMB_CHANCE) * difficulty;
+            currentItemGravity = BASE_ITEM_GRAVITY + (MAX_ITEM_GRAVITY - BASE_ITEM_GRAVITY) * difficulty;
+
             handleInput();
 
-            // 1. 물체 생성
+            // 1. 물체 생성 (난이도가 오를수록 더 자주, 폭탄 확률도 더 높게 등장)
             spawnTimer++;
-            if (spawnTimer % spawnIntervalSteps === 0) {
+            if (spawnTimer % currentSpawnInterval === 0) {
                 let spawnX = 60 + Math.random() * (canvas.width - 120);
                 let rand = Math.random();
-                let type = rand < 0.6 ? 'apple' : (rand < 0.8 ? 'star' : 'bomb');
+                let appleChance = (1 - currentBombChance) * 0.75; // 사과:별 비율은 기존처럼 3:1 유지
+                let type = rand < appleChance ? 'apple' : (rand < 1 - currentBombChance ? 'star' : 'bomb');
                 fallingItems.push(new FallingItem(spawnX, -20, type));
             }
 
@@ -406,8 +429,8 @@ html_code = """
                     // 한 번이라도 로프에 닿았으면, 이후 로프에서 떨어져도 타이머는 계속 증가함
                     if (item.hasTouchedRope) {
                         item.touchTimer++;
-                        // 1초 (60스텝) 유지 성공 시 점수 획득
-                        if (item.touchTimer >= 60) {
+                        // SUCCESS_STEPS(2초) 유지 성공 시 점수 획득
+                        if (item.touchTimer >= SUCCESS_STEPS) {
                             let color = item.type === 'apple' ? '#22c55e' : '#eab308';
                             createParticles(item.x, item.y, color, 20);
                             score += (item.type === 'apple' ? 15 : 35);
