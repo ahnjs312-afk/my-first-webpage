@@ -2,8 +2,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
-st.title("🧺 천 그물망 공 분류 게임 (Side & Floor Sorter)")
-st.caption("💡 **마우스 드래그**: 천을 당겨 파란 공(🔵)은 왼쪽(벽/바닥), 빨간 공(🔴)은 오른쪽(벽/바닥)으로 튕겨 내보내세요!")
+st.title("🧺 천 그물망 공 분류 게임 (Compact Net Sorter)")
+st.caption("💡 **마우스 드래그**: 천을 당겨 파란 공(🔵)은 왼쪽 영역, 빨간 공(🔴)은 오른쪽 영역으로 튕겨 내보내세요!")
 
 html_code = """
 <!DOCTYPE html>
@@ -71,11 +71,12 @@ html_code = """
         const gravity = 0.22;
         const friction = 0.985;
 
+        // 천 크기 및 고정축 설정 수정 (세로 6행, 좌우 고정점 1개씩)
         const cols = 26;
-        const rows = 10;
+        const rows = 6; 
         const spacing = 19;
         const startX = 180;
-        const startY = 160;
+        const startY = 180;
 
         let particles = [];
         let constraints = [];
@@ -182,7 +183,8 @@ html_code = """
 
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
-                    let pinned = (r === 0 && (c < 3 || c >= cols - 3));
+                    // 좌측 맨 끝(c === 0)과 우측 맨 끝(c === cols - 1)의 맨 위(r === 0) 1개씩만 고정 축으로 설정
+                    let pinned = (r === 0 && (c === 0 || c === cols - 1));
                     particles.push(new Particle(startX + c * spacing, startY + r * spacing, pinned));
                 }
             }
@@ -289,12 +291,12 @@ html_code = """
 
                 // 4. 화면 벽면 및 바닥 수거 판정
                 fallingObjects = fallingObjects.filter(obj => {
-                    let isBelowCloth = obj.y > 280;
+                    let isBelowCloth = obj.y > 250;
                     let hitLeftWall = isBelowCloth && (obj.x - obj.radius <= 0);
                     let hitRightWall = isBelowCloth && (obj.x + obj.radius >= canvas.width);
                     let hitBottomFloor = obj.y + obj.radius >= canvas.height;
 
-                    // 왼쪽 수거 판정 (왼쪽 벽 닿음 또는 화면 좌측 절반 바닥 낙하)
+                    // 왼쪽 수거 판정
                     if (hitLeftWall || (hitBottomFloor && obj.x < canvas.width / 2)) {
                         if (obj.colorType === 'blue' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
                         else { lives--; }
@@ -302,7 +304,7 @@ html_code = """
                         return false;
                     }
 
-                    // 오른쪽 수거 판정 (오른쪽 벽 닿음 또는 화면 우측 절반 바닥 낙하)
+                    // 오른쪽 수거 판정
                     if (hitRightWall || (hitBottomFloor && obj.x >= canvas.width / 2)) {
                         if (obj.colorType === 'red' || obj.colorType === 'gold') score += (obj.colorType === 'gold' ? 30 : 10);
                         else { lives--; }
@@ -318,7 +320,7 @@ html_code = """
                 }
             }
 
-            // 5. 시각적 영역 패널 (좌측 파란색 / 우측 빨간색 수거 존)
+            // 5. 시각적 영역 패널
             ctx.fillStyle = 'rgba(49, 130, 206, 0.06)';
             ctx.fillRect(0, 0, canvas.width / 2, canvas.height);
             ctx.fillStyle = 'rgba(229, 62, 62, 0.06)';
@@ -327,7 +329,7 @@ html_code = """
             // 중앙 경계 가이드선
             ctx.beginPath();
             ctx.setLineDash([6, 6]);
-            ctx.moveTo(canvas.width / 2, 380);
+            ctx.moveTo(canvas.width / 2, 350);
             ctx.lineTo(canvas.width / 2, canvas.height);
             ctx.strokeStyle = '#cbd5e0';
             ctx.lineWidth = 2;
@@ -352,12 +354,16 @@ html_code = """
             });
             ctx.stroke();
 
+            // 양쪽 끝 고정축 강조 그리기
             particles.forEach(p => {
                 if (p.pinned) {
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-                    ctx.fillStyle = '#4a5568';
+                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = '#2d3748';
                     ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
                 }
             });
 
