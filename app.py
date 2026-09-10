@@ -656,12 +656,16 @@ html_code = f"""
                 // 안착 타이머 게이지 (회전 없이 항상 정방향)
                 if (this.hasTouchedRope && (this.type === 'apple' || this.type === 'star')) {{
                     let progress = Math.min(1.0, this.touchTimer / SUCCESS_STEPS);
+                    ctx.save();
+                    ctx.shadowColor = this.type === 'apple' ? 'rgba(134,239,172,0.8)' : 'rgba(253,224,71,0.8)';
+                    ctx.shadowBlur  = 8;
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, this.radius + 5, -Math.PI / 2,
                             -Math.PI / 2 + Math.PI * 2 * progress);
-                    ctx.strokeStyle = this.type === 'apple' ? '#22c55e' : '#3b82f6';
-                    ctx.lineWidth = 3.5;
+                    ctx.strokeStyle = this.type === 'apple' ? '#86efac' : '#fde047';
+                    ctx.lineWidth = 3;
                     ctx.stroke();
+                    ctx.restore();
                 }}
             }}
         }}
@@ -1087,38 +1091,80 @@ html_code = f"""
                 return e.alpha > 0;
             }});
 
-            // 로프 그리기 — 인디고 계열로 화이트 톤 통일
+            // ── 로프 ──────────────────────────────────────────
+            // 배경 픽셀아트 팔레트(보라/핑크/하늘)에 맞춰 크림/노랑 계열 + glow
+            ctx.save();
+            // glow 레이어 (번짐)
+            ctx.shadowColor   = 'rgba(255, 240, 160, 0.7)';
+            ctx.shadowBlur    = 10;
+            ctx.strokeStyle   = '#ffe680';
+            ctx.lineWidth     = 4;
+            ctx.lineCap       = 'round';
+            ctx.lineJoin      = 'round';
             ctx.beginPath();
-            ctx.strokeStyle = '#6366f1';
-            ctx.lineWidth = 5;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
             ctx.moveTo(particles[0].x, particles[0].y);
             for (let i = 1; i < particles.length; i++) {{
                 ctx.lineTo(particles[i].x, particles[i].y);
             }}
             ctx.stroke();
-
-            // 좌 핀 (파랑)
-            ctx.fillStyle = '#3b82f6';
+            // 선명한 코어 레이어
+            ctx.shadowBlur    = 0;
+            ctx.strokeStyle   = '#fff8c0';
+            ctx.lineWidth     = 2;
             ctx.beginPath();
-            ctx.arc(leftPinX, pinsY, 12, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#ffffff';
-            ctx.font = "bold 9px sans-serif";
-            ctx.textAlign = "center";
+            ctx.moveTo(particles[0].x, particles[0].y);
+            for (let i = 1; i < particles.length; i++) {{
+                ctx.lineTo(particles[i].x, particles[i].y);
+            }}
+            ctx.stroke();
+            ctx.restore();
+
+            // ── 핀 (픽셀 블록 스타일 + glow) ─────────────────
+            // 왼쪽 핀 — 하늘색
+            ctx.save();
+            ctx.shadowColor = 'rgba(125, 211, 252, 0.8)';
+            ctx.shadowBlur  = 12;
+            ctx.fillStyle   = '#7dd3fc';
+            // 픽셀 블록: 둥근 사각형
+            const pinSize = 20;
+            const pinR    = 3; // 모서리 반경 (픽셀아트 느낌)
+            function drawPixelPin(x, y) {{
+                const half = pinSize / 2;
+                ctx.beginPath();
+                ctx.moveTo(x - half + pinR, y - half);
+                ctx.lineTo(x + half - pinR, y - half);
+                ctx.arcTo(x + half, y - half, x + half, y - half + pinR, pinR);
+                ctx.lineTo(x + half, y + half - pinR);
+                ctx.arcTo(x + half, y + half, x + half - pinR, y + half, pinR);
+                ctx.lineTo(x - half + pinR, y + half);
+                ctx.arcTo(x - half, y + half, x - half, y + half - pinR, pinR);
+                ctx.lineTo(x - half, y - half + pinR);
+                ctx.arcTo(x - half, y - half, x - half + pinR, y - half, pinR);
+                ctx.closePath();
+                ctx.fill();
+            }}
+            drawPixelPin(leftPinX, pinsY);
+            ctx.shadowBlur  = 0;
+            ctx.fillStyle   = 'rgba(0,0,0,0.5)';
+            ctx.font        = "bold 8px sans-serif";
+            ctx.textAlign   = "center";
             ctx.textBaseline = "middle";
             ctx.fillText("A/D", leftPinX, pinsY);
+            ctx.restore();
 
-            // 우 핀 (로즈)
-            ctx.fillStyle = '#f43f5e';
-            ctx.beginPath();
-            ctx.arc(rightPinX, pinsY, 12, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#ffffff';
-            ctx.font = "bold 9px sans-serif";
+            // 오른쪽 핀 — 핑크
+            ctx.save();
+            ctx.shadowColor = 'rgba(236, 72, 153, 0.8)';
+            ctx.shadowBlur  = 12;
+            ctx.fillStyle   = '#f472b6';
+            drawPixelPin(rightPinX, pinsY);
+            ctx.shadowBlur  = 0;
+            ctx.fillStyle   = 'rgba(0,0,0,0.5)';
+            ctx.font        = "bold 8px sans-serif";
+            ctx.textAlign   = "center";
+            ctx.textBaseline = "middle";
             ctx.fillText("◀▶", rightPinX, pinsY);
+            ctx.restore();
 
             // 낙하 물체 그리기
             fallingItems.forEach(item => item.draw());
