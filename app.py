@@ -11,7 +11,8 @@ def _img_b64(path, mime):
     data = open(path, "rb").read()
     return f"data:{mime};base64,{_b64.b64encode(data).decode()}"
 
-_sheet_src = _img_b64("assets/64x64.png", "image/png")
+_apple_src  = _img_b64("assets/Apple.png",   "image/png")
+_crystal_src = _img_b64("assets/Crystal.png", "image/png")
 
 html_code = f"""
 <!DOCTYPE html>
@@ -279,16 +280,10 @@ html_code = f"""
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // ---- 스프라이트 시트 ----
-        // 64x64 그리드, 8열. 각 항목은 시트에서 잘라낼 (sx, sy) 좌표.
-        // apple=idx0(0,0) / star=idx3(192,0) / bomb=idx7(448,0)
-        const SPRITE_MAP = {{
-            apple: {{ sx: 0,   sy: 0, sw: 64, sh: 64 }},
-            star:  {{ sx: 192, sy: 0, sw: 64, sh: 64 }},
-            bomb:  {{ sx: 448, sy: 0, sw: 64, sh: 64 }},
-        }};
-        const spriteSheet = new Image();
-        spriteSheet.src = "{_sheet_src}";
+        // ---- 스프라이트 이미지 ----
+        // 사과·크리스탈은 개별 PNG, 폭탄은 이모지 폴백 유지
+        const imgApple   = new Image(); imgApple.src   = "{_apple_src}";
+        const imgCrystal = new Image(); imgCrystal.src = "{_crystal_src}";
 
         // 캔버스에 포커스를 줘야 iframe 안에서 키 입력이 확실히 잡힘
         canvas.addEventListener('click', () => canvas.focus());
@@ -508,26 +503,21 @@ html_code = f"""
             }}
 
             draw() {{
-                const s = SPRITE_MAP[this.type];
                 const d = this.radius * 2;
+                const dx = this.x - this.radius;
+                const dy = this.y - this.radius;
 
-                if (spriteSheet.complete && spriteSheet.naturalWidth > 0) {{
-                    // 스프라이트 시트에서 해당 칸을 잘라 그린다
-                    ctx.drawImage(spriteSheet,
-                        s.sx, s.sy, s.sw, s.sh,
-                        this.x - this.radius, this.y - this.radius, d, d);
+                if (this.type === 'apple' && imgApple.complete && imgApple.naturalWidth > 0) {{
+                    ctx.drawImage(imgApple, dx, dy, d, d);
+                }} else if (this.type === 'star' && imgCrystal.complete && imgCrystal.naturalWidth > 0) {{
+                    ctx.drawImage(imgCrystal, dx, dy, d, d);
                 }} else {{
-                    // 시트 로드 전 폴백: 단색 원 + 이모지
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = this.type === 'apple' ? 'rgba(239,68,68,0.12)'
-                                  : this.type === 'star'  ? 'rgba(234,179,8,0.12)'
-                                  :                         'rgba(99,102,241,0.10)';
-                    ctx.fill();
+                    // 폭탄 또는 이미지 로드 전 폴백
                     ctx.font = "18px sans-serif";
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
-                    ctx.fillText(this.type === 'apple' ? '🍎' : this.type === 'star' ? '⭐' : '💣',
+                    ctx.fillText(this.type === 'apple' ? '🍎'
+                               : this.type === 'star'  ? '⭐' : '💣',
                                  this.x, this.y);
                 }}
 
