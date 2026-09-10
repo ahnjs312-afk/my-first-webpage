@@ -1003,9 +1003,9 @@ html_code = f"""
         // speeds: 뒤 레이어일수록 느리게 스크롤해서 원근감(시차) 효과를 준다.
         const BG_LAYERS = [
             {{ src: "{_bg_layers[0]}", speed: 0.0 }},  // 1.png 하늘 배경 — 고정
-            {{ src: "{_bg_layers[1]}", speed: 0.3 }},  // 2.png 뒤 구름 — 느리게
-            {{ src: "{_bg_layers[2]}", speed: 0.9 }},  // 3.png 앞 구름 — 빠르게
-            {{ src: "{_bg_layers[3]}", speed: 0.15 }}, // 4.png 투명 레이어 — 가장 앞, 천천히
+            {{ src: "{_bg_layers[1]}", speed: 0.1 }},  // 2.png 뒤 구름 — 느리게
+            {{ src: "{_bg_layers[2]}", speed: 0.2 }},  // 3.png 앞 구름 — 빠르게
+            {{ src: "{_bg_layers[3]}", speed: 0.3 }}, // 4.png 투명 레이어 — 가장 앞, 천천히
         ].map(l => {{
             const img = new Image();
             img.src = l.src;
