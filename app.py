@@ -469,7 +469,8 @@ html_code = f"""
         const CONTACT_SKIN = 3;         // 접촉 유지용 기본 여유 두께
         const CONTACT_SKIN_BOTTOM = 14; // 로프 아랫면 추가 두께 (보이는 것보다 두껍게)
         const RESTITUTION = 0.15;       // 반발 계수 (0에 가까울수록 덜 튐)
-        const SLIDE_FACTOR = 0.5;       // 경사면을 따라 미끄러지는 정도
+        const SLIDE_FACTOR = 10;        // 경사면을 따라 미끄러지는 정도 (중력 접선 성분 배율)
+        const ROLL_FACTOR  = 1.0;       // 구르는 회전량 배율 (1.0 = 미끄러짐 없는 실제 구름)
         const ROPE_PUSH = 1.2;          // 아이템이 로프를 눌러 들어가는 총량 (반복 횟수로 나눠서 적용)
         const ROPE_PUSH_VEL_RATIO = 0.3; // 눌린 양 중 실제 속도로 전환되는 비율 (나머지는 위치만 이동)
 
@@ -601,8 +602,7 @@ html_code = f"""
                 // 회전: 낙하 중 천천히 회전하다가 로프에 닿으면 경사각으로 고정
                 this.angle    = 0;
                 this.angleVel = (Math.random() < 0.5 ? 1 : -1)
-                              * (1 + Math.random()) * Math.PI / 180; // 1~2°/스텝
-                this.angleLocked = false; // true가 되면 로프 경사각으로 고정
+                              * (1 + Math.random()) * Math.PI / 180; // 1~2°/스텝 (공중 자유회전)
             }}
 
             update() {{
@@ -623,7 +623,8 @@ html_code = f"""
                 this.vx *= 0.98;
 
                 // 낙하 중에는 회전, 로프에 닿으면 각도 고정
-                if (!this.angleLocked) this.angle += this.angleVel;
+                // 공중에서만 자유 회전. 로프 위에서는 실제 이동량에 따라 구른다(충돌 처리부에서 적용)
+                if (!this.isOnRope) this.angle += this.angleVel;
             }}
 
             draw() {{
@@ -958,8 +959,17 @@ html_code = f"""
                         item.vx -= (1 + RESTITUTION) * vn * lastBest.nx;
                         item.vy -= (1 + RESTITUTION) * vn * lastBest.ny;
                     }}
-                    // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨
-                    item.vx += lastBest.tx * lastBest.ty * SLIDE_FACTOR;
+                    // 경사면을 따라 미끄러지는 힘 — 중력의 접선 성분을 접선 방향 전체에 적용한다.
+                    // 기존에는 vx에만 tx*ty를 더해서 방향이 정확하지 않았고, 로프가 가파를수록
+                    // 실제로 굴러 내려가는 느낌이 나지 않았다.
+                    let slideAccel = currentItemGravity * lastBest.ty * SLIDE_FACTOR;
+                    item.vx += lastBest.tx * slideAccel;
+                    item.vy += lastBest.ty * slideAccel;
+
+                    // 구르기: 접선 방향 이동량에 비례해 회전시킨다 (미끄러짐 없는 구름, ω = v / r).
+                    // 아이템이 로프를 따라 이동하는 만큼 정확히 굴러가므로 상호작용이 눈에 보인다.
+                    let vt = item.vx * lastBest.tx + item.vy * lastBest.ty;
+                    item.angle += vt / item.radius * ROLL_FACTOR;
                 }}
 
                 // [수정] 축(핀) 자체와의 충돌 처리.
@@ -984,15 +994,7 @@ html_code = f"""
                 }}
 
                 item.isOnRope = anyCollision;
-                if (item.isOnRope) {{
-                    item.hasTouchedRope = true;
-                    // 처음 닿는 순간 로프 경사각으로 각도를 고정한다.
-                    // lastBest.tx/ty 는 접선 단위벡터이므로 atan2로 경사각을 구할 수 있다.
-                    if (!item.angleLocked) {{
-                        item.angle = Math.atan2(lastBest.ty, lastBest.tx);
-                        item.angleLocked = true;
-                    }}
-                }}
+                if (item.isOnRope) item.hasTouchedRope = true;
             }});
 
             // 4. 아이템 2초 안착 / 폭발 / 낙하 판정
