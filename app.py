@@ -416,11 +416,11 @@ html_code = f"""
         // 로프 관성으로 세그먼트가 일시적으로 교차하면서 관통이 발생한다.
         // 실측 결과 관통이 발생하는 시나리오의 간격이 모두 170~180px 이내였으므로,
         // 그 영역 자체를 게임에서 원천 차단한다. (기존 60px)
-        // [수정] 최소 간격을 220px로 상향.
-        // 정적 상태에서는 어떤 간격에서도 세그먼트 교차가 없지만, 축을 급격히 좁힐 때
-        // 로프 관성으로 세그먼트가 일시적으로 교차하면서 관통이 발생한다.
-        // 시뮬레이션으로 측정한 결과 220px 이상이면 관통이 0으로 떨어지므로 이 값으로 고정한다.
-        const MIN_SPAN = 220;
+        // 소프트 리밋: 이 간격 이하로 좁혀지면 스프링 반발력이 생긴다.
+        // 하드 클램프(벽처럼 딱 막힘)와 달리 자연스럽게 저항하며,
+        // 아주 급격히 좁히는 극단적 상황에서만 가끔 관통이 생길 수 있다.
+        const SOFT_MIN_SPAN  = 120;  // 이 간격부터 반발력 시작
+        const SOFT_SPRING_K  = 0.4;  // 반발력 강도 (클수록 더 강하게 밀어냄)
 
         let leftPinX = 250;
         let rightPinX = 600;
@@ -760,13 +760,17 @@ html_code = f"""
             if (leftPinX < 30) {{ leftPinX = 30; leftPinVX = 0; }}
             if (rightPinX > canvas.width - 30) {{ rightPinX = canvas.width - 30; rightPinVX = 0; }}
 
-            // 두 축이 겹치지 않도록 최소 간격 유지
-            if (rightPinX - leftPinX < MIN_SPAN) {{
-                let deficit = MIN_SPAN - (rightPinX - leftPinX);
-                leftPinX -= deficit / 2;
-                rightPinX += deficit / 2;
-                leftPinVX = 0;
-                rightPinVX = 0;
+            // 소프트 리밋: 간격이 SOFT_MIN_SPAN 이하로 좁혀질수록
+            // 두 축을 서로 밀어내는 반발력이 점점 강해진다.
+            // 하드 클램프처럼 벽에 부딪히는 느낌 없이 자연스럽게 저항한다.
+            {{
+                let span = rightPinX - leftPinX;
+                if (span < SOFT_MIN_SPAN) {{
+                    let overlap = SOFT_MIN_SPAN - span;
+                    let force   = overlap * SOFT_SPRING_K;
+                    leftPinVX  -= force;
+                    rightPinVX += force;
+                }}
             }}
 
             // [수정] 최대 간격 제한 — 이게 폭주의 근본 원인이었다.
@@ -1008,9 +1012,9 @@ html_code = f"""
         // speeds: 뒤 레이어일수록 느리게 스크롤해서 원근감(시차) 효과를 준다.
         const BG_LAYERS = [
             {{ src: "{_bg_layers[0]}", speed: 0.0 }},  // 1.png 하늘 배경 — 고정
-            {{ src: "{_bg_layers[1]}", speed: 0.1 }},  // 2.png 뒤 구름 — 느리게
-            {{ src: "{_bg_layers[2]}", speed: 0.2 }}, // 3.png 투명 레이어 — 천천히
-            {{ src: "{_bg_layers[3]}", speed: 0.3 }},  // 4.png 앞 구름 — 빠르게
+            {{ src: "{_bg_layers[1]}", speed: 0.3 }},  // 2.png 뒤 구름 — 느리게
+            {{ src: "{_bg_layers[2]}", speed: 0.15 }}, // 3.png 투명 레이어 — 천천히
+            {{ src: "{_bg_layers[3]}", speed: 0.9 }},  // 4.png 앞 구름 — 빠르게
         ].map(l => {{
             const img = new Image();
             img.src = l.src;
