@@ -12,10 +12,10 @@ def _img_b64(path, mime):
     return f"data:{mime};base64,{_b64.b64encode(data).decode()}"
 
 _bg_layers = [
-    _img_b64("assets/1000010249.png", "image/png"),  # layer 0 — 뒤 구름 (가장 뒤)
-    _img_b64("assets/1000010250.png", "image/png"),  # layer 1 — 거의 투명
-    _img_b64("assets/1000010251.png", "image/png"),  # layer 2 — 하늘 배경
-    _img_b64("assets/1000010252.png", "image/png"),  # layer 3 — 앞 구름 (가장 앞)
+    _img_b64("assets/1.png", "image/png"),  # 하늘 배경 — 가장 뒤, 고정
+    _img_b64("assets/2.png", "image/png"),  # 뒤 구름 — 느리게
+    _img_b64("assets/3.png", "image/png"),  # 앞 구름 — 빠르게
+    _img_b64("assets/4.png", "image/png"),  # 투명 레이어 — 가장 앞
 ]
 _apple_src   = _img_b64("assets/Apple.png",   "image/png")
 _crystal_src = _img_b64("assets/Crystal.png", "image/png")
@@ -1002,10 +1002,10 @@ html_code = f"""
         // 숫자 큰 파일이 앞(위)에, 작은 파일이 뒤(아래)에 그려진다.
         // speeds: 뒤 레이어일수록 느리게 스크롤해서 원근감(시차) 효과를 준다.
         const BG_LAYERS = [
-            {{ src: "{_bg_layers[0]}", speed: 0.2 }},  // 1000010249 — 가장 뒤
-            {{ src: "{_bg_layers[1]}", speed: 0.4 }},  // 1000010250
-            {{ src: "{_bg_layers[2]}", speed: 0.6 }},  // 1000010251
-            {{ src: "{_bg_layers[3]}", speed: 1.0 }},  // 1000010252 — 가장 앞
+            {{ src: "{_bg_layers[0]}", speed: 0.0 }},  // 1.png 하늘 배경 — 고정
+            {{ src: "{_bg_layers[1]}", speed: 0.3 }},  // 2.png 뒤 구름 — 느리게
+            {{ src: "{_bg_layers[2]}", speed: 0.9 }},  // 3.png 앞 구름 — 빠르게
+            {{ src: "{_bg_layers[3]}", speed: 0.15 }}, // 4.png 투명 레이어 — 가장 앞, 천천히
         ].map(l => {{
             const img = new Image();
             img.src = l.src;
