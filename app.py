@@ -5,13 +5,21 @@ st.set_page_config(layout="wide")
 st.title("🪢 Rope Balance Catcher (2초 안착 물리 캐치 게임)")
 st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과가 로프 좌우 범위 안에서 2초 동안 머무르게 하면 점수를 얻어요! (먼저 게임 화면을 한 번 클릭해주세요)")
 
-html_code = """
+import base64 as _b64
+
+def _img_b64(path, mime):
+    data = open(path, "rb").read()
+    return f"data:{mime};base64,{_b64.b64encode(data).decode()}"
+
+_sheet_src = _img_b64("assets/64x64.webp", "image/webp")
+
+html_code = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <style>
         /* ── 디자인 토큰 ───────────────────────────────────── */
-        :root {
+        :root {{
             --bg:        #f8f9fb;       /* 페이지 배경 */
             --surface:   #ffffff;       /* 카드·캔버스 */
             --border:    #e4e7ed;       /* 테두리 */
@@ -34,11 +42,11 @@ html_code = """
             --radius-sm: 8px;
             --radius-md: 14px;
             --radius-lg: 20px;
-        }
+        }}
 
         /* ── 기본 레이아웃 ─────────────────────────────────── */
-        * { box-sizing: border-box; }
-        body {
+        * {{ box-sizing: border-box; }}
+        body {{
             margin: 0;
             overflow: hidden;
             background: var(--bg);
@@ -46,10 +54,10 @@ html_code = """
             flex-direction: column;
             align-items: center;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
+        }}
 
         /* ── 인게임 상단 HUD ───────────────────────────────── */
-        .hud {
+        .hud {{
             display: flex;
             align-items: center;
             gap: 0;
@@ -59,8 +67,8 @@ html_code = """
             border-radius: var(--radius-lg);
             padding: 6px 8px;
             box-shadow: var(--shadow);
-        }
-        .hud-item {
+        }}
+        .hud-item {{
             display: flex;
             align-items: center;
             gap: 6px;
@@ -68,20 +76,20 @@ html_code = """
             font-size: 15px;
             font-weight: 700;
             color: var(--text-primary);
-        }
-        .hud-divider {
+        }}
+        .hud-divider {{
             width: 1px;
             height: 22px;
             background: var(--border);
-        }
-        .hud-label {
+        }}
+        .hud-label {{
             font-size: 11px;
             font-weight: 600;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.6px;
-        }
-        .btn-reset {
+        }}
+        .btn-reset {{
             background: var(--accent-lt);
             color: var(--accent);
             border: 1px solid #c7d2fe;
@@ -92,28 +100,28 @@ html_code = """
             cursor: pointer;
             margin-left: 6px;
             transition: background 0.15s;
-        }
-        .btn-reset:hover { background: #e0e7ff; }
+        }}
+        .btn-reset:hover {{ background: #e0e7ff; }}
 
         /* ── 캔버스 ────────────────────────────────────────── */
-        canvas {
+        canvas {{
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius-md);
             box-shadow: var(--shadow);
             outline: none;
             display: block;
-        }
+        }}
 
         /* ── 힌트 ──────────────────────────────────────────── */
-        .hint {
+        .hint {{
             font-size: 12px;
             color: var(--text-muted);
             margin-top: 8px;
-        }
+        }}
 
         /* ── 로비 오버레이 ─────────────────────────────────── */
-        #lobby {
+        #lobby {{
             position: absolute;
             top: 0; left: 0;
             width: 850px; height: 580px;
@@ -126,31 +134,31 @@ html_code = """
             justify-content: center;
             z-index: 10;
             user-select: none;
-        }
+        }}
 
         /* 로비 타이틀 */
-        .lobby-emoji  { font-size: 48px; margin-bottom: 6px; }
-        .lobby-title  { font-size: 28px; font-weight: 900; color: var(--text-primary); letter-spacing: -0.5px; margin-bottom: 4px; }
-        .lobby-sub    { font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }
+        .lobby-emoji  {{ font-size: 48px; margin-bottom: 6px; }}
+        .lobby-title  {{ font-size: 28px; font-weight: 900; color: var(--text-primary); letter-spacing: -0.5px; margin-bottom: 4px; }}
+        .lobby-sub    {{ font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }}
 
         /* 카드 행 */
-        .lobby-cards  { display: flex; gap: 14px; margin-bottom: 28px; }
-        .lobby-card {
+        .lobby-cards  {{ display: flex; gap: 14px; margin-bottom: 28px; }}
+        .lobby-card {{
             width: 218px;
             background: var(--bg);
             border: 1px solid var(--border);
             border-radius: var(--radius-md);
             padding: 16px 20px;
-        }
-        .card-heading {
+        }}
+        .card-heading {{
             font-size: 11px;
             font-weight: 700;
             color: var(--accent);
             text-transform: uppercase;
             letter-spacing: 1px;
             margin-bottom: 12px;
-        }
-        .card-row {
+        }}
+        .card-row {{
             display: flex;
             align-items: center;
             gap: 10px;
@@ -158,9 +166,9 @@ html_code = """
             font-size: 13px;
             color: var(--text-secondary);
             line-height: 1.4;
-        }
-        .card-row:last-child { margin-bottom: 0; }
-        kbd {
+        }}
+        .card-row:last-child {{ margin-bottom: 0; }}
+        kbd {{
             background: var(--surface);
             color: var(--text-primary);
             border: 1px solid var(--border);
@@ -170,19 +178,19 @@ html_code = """
             font-size: 12px;
             font-weight: 700;
             font-family: inherit;
-        }
-        .score-badge {
+        }}
+        .score-badge {{
             font-weight: 700;
             font-size: 13px;
             padding: 1px 7px;
             border-radius: 99px;
-        }
-        .badge-green  { background: #dcfce7; color: #16a34a; }
-        .badge-yellow { background: #fef9c3; color: #a16207; }
-        .badge-red    { background: #fee2e2; color: #dc2626; }
+        }}
+        .badge-green  {{ background: #dcfce7; color: #16a34a; }}
+        .badge-yellow {{ background: #fef9c3; color: #a16207; }}
+        .badge-red    {{ background: #fee2e2; color: #dc2626; }}
 
         /* 시작 버튼 */
-        .btn-start {
+        .btn-start {{
             background: var(--accent);
             color: #fff;
             border: none;
@@ -194,13 +202,13 @@ html_code = """
             box-shadow: 0 4px 18px rgba(99,102,241,0.35);
             transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
             letter-spacing: 0.3px;
-        }
-        .btn-start:hover {
+        }}
+        .btn-start:hover {{
             background: #4f46e5;
             transform: translateY(-1px);
             box-shadow: 0 6px 24px rgba(99,102,241,0.45);
-        }
-        .btn-start:active { transform: translateY(0); }
+        }}
+        .btn-start:active {{ transform: translateY(0); }}
     </style>
 </head>
 <body>
@@ -271,18 +279,29 @@ html_code = """
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
+        // ---- 스프라이트 시트 ----
+        // 64x64 그리드, 8열. 각 항목은 시트에서 잘라낼 (sx, sy) 좌표.
+        // apple=idx0(0,0) / star=idx3(192,0) / bomb=idx7(448,0)
+        const SPRITE_MAP = {{
+            apple: {{ sx: 0,   sy: 0, sw: 64, sh: 64 }},
+            star:  {{ sx: 192, sy: 0, sw: 64, sh: 64 }},
+            bomb:  {{ sx: 448, sy: 0, sw: 64, sh: 64 }},
+        }};
+        const spriteSheet = new Image();
+        spriteSheet.src = "{_sheet_src}";
+
         // 캔버스에 포커스를 줘야 iframe 안에서 키 입력이 확실히 잡힘
         canvas.addEventListener('click', () => canvas.focus());
 
         let isLobby = true;
 
-        function startGame() {
+        function startGame() {{
             document.getElementById('lobby').style.display = 'none';
             document.getElementById('hint').style.visibility = 'visible';
             isLobby = false;
             resetGame();
             canvas.focus();
-        }
+        }}
 
         // ---- 물리/난이도 상수 ----
         // 아래 값들은 "초당" 기준으로 튜닝되어 있고, 고정 타임스텝(STEP_MS)으로 매 프레임 동일하게 적용됩니다.
@@ -357,29 +376,29 @@ html_code = """
         let spawnCountdown = BASE_SPAWN_INTERVAL; // 카운트다운 방식 스폰 타이머 (난이도 변화에 안전)
         let isGameOver = false;
 
-        const keys = {};
+        const keys = {{}};
         const trackedKeys = new Set(['a', 'A', 'd', 'D', 'ArrowLeft', 'ArrowRight']);
 
-        window.addEventListener('keydown', e => {
+        window.addEventListener('keydown', e => {{
             if (trackedKeys.has(e.key)) e.preventDefault(); // 부모 페이지 스크롤 방지
             keys[e.key] = true;
-        });
-        window.addEventListener('keyup', e => {
+        }});
+        window.addEventListener('keyup', e => {{
             if (trackedKeys.has(e.key)) e.preventDefault();
             keys[e.key] = false;
-        });
+        }});
 
-        class Particle {
-            constructor(x, y, isLeftPin = false, isRightPin = false) {
+        class Particle {{
+            constructor(x, y, isLeftPin = false, isRightPin = false) {{
                 this.x = x;
                 this.y = y;
                 this.oldx = x;
                 this.oldy = y;
                 this.isLeftPin = isLeftPin;
                 this.isRightPin = isRightPin;
-            }
+            }}
 
-            update() {
+            update() {{
                 if (this.isLeftPin || this.isRightPin) return;
                 let vx = (this.x - this.oldx) * ropeFriction;
                 let vy = (this.y - this.oldy) * ropeFriction;
@@ -387,45 +406,45 @@ html_code = """
                 // [수정] 속도 상한. 수치적으로 한 번 폭주가 시작되면 로프 전체가 발산해버리므로
                 // 마지막 안전장치로 스텝당 이동량을 제한한다.
                 let speed = Math.hypot(vx, vy);
-                if (speed > MAX_ROPE_SPEED) {
+                if (speed > MAX_ROPE_SPEED) {{
                     vx = vx / speed * MAX_ROPE_SPEED;
                     vy = vy / speed * MAX_ROPE_SPEED;
-                }
+                }}
 
                 this.oldx = this.x;
                 this.oldy = this.y;
                 this.x += vx;
                 this.y += vy + ropeGravity;
-            }
-        }
+            }}
+        }}
 
-        class Constraint {
-            constructor(p1, p2, restLength) {
+        class Constraint {{
+            constructor(p1, p2, restLength) {{
                 this.p1 = p1;
                 this.p2 = p2;
                 this.length = restLength;
-            }
+            }}
 
-            resolve() {
+            resolve() {{
                 let dx = this.p2.x - this.p1.x;
                 let dy = this.p2.y - this.p1.y;
                 let dist = Math.hypot(dx, dy);
                 if (dist === 0) return;
                 let diff = (this.length - dist) / dist * 0.5;
 
-                if (!this.p1.isLeftPin && !this.p1.isRightPin) {
+                if (!this.p1.isLeftPin && !this.p1.isRightPin) {{
                     this.p1.x -= dx * diff;
                     this.p1.y -= dy * diff;
-                }
-                if (!this.p2.isLeftPin && !this.p2.isRightPin) {
+                }}
+                if (!this.p2.isLeftPin && !this.p2.isRightPin) {{
                     this.p2.x += dx * diff;
                     this.p2.y += dy * diff;
-                }
-            }
-        }
+                }}
+            }}
+        }}
 
-        class Sparkle {
-            constructor(x, y, color) {
+        class Sparkle {{
+            constructor(x, y, color) {{
                 this.x = x;
                 this.y = y;
                 this.vx = (Math.random() - 0.5) * 7;
@@ -433,15 +452,15 @@ html_code = """
                 this.radius = 3 + Math.random() * 4;
                 this.color = color;
                 this.alpha = 1.0;
-            }
+            }}
 
-            update() {
+            update() {{
                 this.x += this.vx;
                 this.y += this.vy;
                 this.alpha -= 0.03;
-            }
+            }}
 
-            draw() {
+            draw() {{
                 ctx.save();
                 ctx.globalAlpha = Math.max(0, this.alpha);
                 ctx.fillStyle = this.color;
@@ -449,11 +468,11 @@ html_code = """
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.restore();
-            }
-        }
+            }}
+        }}
 
-        class FallingItem {
-            constructor(x, y, type) {
+        class FallingItem {{
+            constructor(x, y, type) {{
                 this.x = x;
                 this.y = y;
                 this.prevX = x; // 스윕(swept) 충돌 검사를 위한 이전 스텝 위치
@@ -468,9 +487,9 @@ html_code = """
                                               // 수직으로 튕기거나 잠깐 떠도 상관없이, x좌표가 로프의
                                               // 좌우 범위(leftPinX ~ rightPinX) 안에 있는 한 계속
                                               // 카운트가 유지된다 (아래 판정 로직 참고)
-            }
+            }}
 
-            update() {
+            update() {{
                 this.prevX = this.x;
                 this.prevY = this.y;
                 this.vy += currentItemGravity;
@@ -478,74 +497,78 @@ html_code = """
                 // [수정] 아이템 속도 상한. 스텝당 이동량이 너무 커지면 스윕 검사로도 잡기 어려운
                 // 극단적인 관통이 생기고, 반사 시 에너지도 과하게 튄다.
                 let speed = Math.hypot(this.vx, this.vy);
-                if (speed > MAX_ITEM_SPEED) {
+                if (speed > MAX_ITEM_SPEED) {{
                     this.vx = this.vx / speed * MAX_ITEM_SPEED;
                     this.vy = this.vy / speed * MAX_ITEM_SPEED;
-                }
+                }}
 
                 this.x += this.vx;
                 this.y += this.vy;
                 this.vx *= 0.98;
-            }
+            }}
 
-            draw() {
-                // 아이템 배경 원
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                if (this.type === 'apple')      ctx.fillStyle = 'rgba(239,68,68,0.12)';
-                else if (this.type === 'star')  ctx.fillStyle = 'rgba(234,179,8,0.12)';
-                else                            ctx.fillStyle = 'rgba(99,102,241,0.10)';
-                ctx.fill();
+            draw() {{
+                const s = SPRITE_MAP[this.type];
+                const d = this.radius * 2;
 
-                ctx.strokeStyle = this.type === 'apple' ? '#ef4444'
-                                : this.type === 'star'  ? '#eab308'
-                                :                         '#6366f1';
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-
-                ctx.font = "18px sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                let symbol = this.type === 'apple' ? '🍎' : (this.type === 'star' ? '⭐' : '💣');
-                ctx.fillText(symbol, this.x, this.y);
+                if (spriteSheet.complete && spriteSheet.naturalWidth > 0) {{
+                    // 스프라이트 시트에서 해당 칸을 잘라 그린다
+                    ctx.drawImage(spriteSheet,
+                        s.sx, s.sy, s.sw, s.sh,
+                        this.x - this.radius, this.y - this.radius, d, d);
+                }} else {{
+                    // 시트 로드 전 폴백: 단색 원 + 이모지
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = this.type === 'apple' ? 'rgba(239,68,68,0.12)'
+                                  : this.type === 'star'  ? 'rgba(234,179,8,0.12)'
+                                  :                         'rgba(99,102,241,0.10)';
+                    ctx.fill();
+                    ctx.font = "18px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(this.type === 'apple' ? '🍎' : this.type === 'star' ? '⭐' : '💣',
+                                 this.x, this.y);
+                }}
 
                 // 안착 타이머 게이지
-                if (this.hasTouchedRope && (this.type === 'apple' || this.type === 'star')) {
+                if (this.hasTouchedRope && (this.type === 'apple' || this.type === 'star')) {{
                     let progress = Math.min(1.0, this.touchTimer / SUCCESS_STEPS);
                     ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.radius + 5, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * progress));
+                    ctx.arc(this.x, this.y, this.radius + 5, -Math.PI / 2,
+                            -Math.PI / 2 + Math.PI * 2 * progress);
                     ctx.strokeStyle = this.type === 'apple' ? '#22c55e' : '#3b82f6';
                     ctx.lineWidth = 3.5;
                     ctx.stroke();
-                }
-            }
-        }
+                }}
+            }}
+        }}
 
-        function initRope() {
+        function initRope() {{
             particles = [];
             constraints = [];
             let widthStep = (rightPinX - leftPinX) / (ropePoints - 1);
 
-            for (let i = 0; i < ropePoints; i++) {
+            for (let i = 0; i < ropePoints; i++) {{
                 let isLeftPin = (i === 0);
                 let isRightPin = (i === ropePoints - 1);
                 let x = leftPinX + i * widthStep;
                 let y = pinsY;
                 particles.push(new Particle(x, y, isLeftPin, isRightPin));
-            }
+            }}
 
-            for (let i = 0; i < ropePoints - 1; i++) {
+            for (let i = 0; i < ropePoints - 1; i++) {{
                 constraints.push(new Constraint(particles[i], particles[i + 1], restLen));
-            }
-        }
+            }}
+        }}
 
-        function createParticles(x, y, color, count = 15) {
-            for (let i = 0; i < count; i++) {
+        function createParticles(x, y, color, count = 15) {{
+            for (let i = 0; i < count; i++) {{
                 effects.push(new Sparkle(x, y, color));
-            }
-        }
+            }}
+        }}
 
-        function resetGame() {
+        function resetGame() {{
             leftPinX = 250;
             rightPinX = 600;
             leftPinVX = 0;
@@ -561,18 +584,18 @@ html_code = """
             initRope();
             updateUI();
             canvas.focus();
-        }
+        }}
 
-        function updateUI() {
+        function updateUI() {{
             document.getElementById('score').innerText = score;
             document.getElementById('lives').innerText = "❤️".repeat(Math.max(0, lives));
-        }
+        }}
 
         // 두 선분(A: 아이템의 이동 경로, B: 로프 세그먼트) 사이의 최단 거리를 구하는
         // 표준 "closest points between two segments" 알고리즘 (Ericson, Real-Time Collision Detection).
         // 이동 경로 전체를 검사하므로, 한 스텝에 로프 두께보다 멀리 이동해서 그냥 지나쳐버리는
         // 터널링을 감지할 수 있습니다.
-        function closestDistBetweenSegments(p1, q1, p2, q2) {
+        function closestDistBetweenSegments(p1, q1, p2, q2) {{
             const EPS = 1e-9;
             let d1x = q1.x - p1.x, d1y = q1.y - p1.y; // 경로 세그먼트 방향
             let d2x = q2.x - p2.x, d2y = q2.y - p2.y; // 로프 세그먼트 방향
@@ -583,52 +606,52 @@ html_code = """
             let f = d2x * rx + d2y * ry;
 
             let s, t;
-            if (a <= EPS && e <= EPS) {
+            if (a <= EPS && e <= EPS) {{
                 s = 0; t = 0;
-            } else if (a <= EPS) {
+            }} else if (a <= EPS) {{
                 s = 0;
                 t = Math.max(0, Math.min(1, f / e));
-            } else {
+            }} else {{
                 let c = d1x * rx + d1y * ry;
-                if (e <= EPS) {
+                if (e <= EPS) {{
                     t = 0;
                     s = Math.max(0, Math.min(1, -c / a));
-                } else {
+                }} else {{
                     let b = d1x * d2x + d1y * d2y;
                     let denom = a * e - b * b;
                     s = denom !== 0 ? Math.max(0, Math.min(1, (b * f - c * e) / denom)) : 0;
                     t = (b * s + f) / e;
-                    if (t < 0) {
+                    if (t < 0) {{
                         t = 0;
                         s = Math.max(0, Math.min(1, -c / a));
-                    } else if (t > 1) {
+                    }} else if (t > 1) {{
                         t = 1;
                         s = Math.max(0, Math.min(1, (b - c) / a));
-                    }
-                }
-            }
+                    }}
+                }}
+            }}
 
             let c1x = p1.x + d1x * s, c1y = p1.y + d1y * s; // 경로 위 최근접점
             let c2x = p2.x + d2x * t, c2y = p2.y + d2y * t; // 로프 세그먼트 위 최근접점
             let dx = c1x - c2x, dy = c1y - c2y;
-            return { dist: Math.hypot(dx, dy), t, dx, dy, c2x, c2y };
-        }
+            return {{ dist: Math.hypot(dx, dy), t, dx, dy, c2x, c2y }};
+        }}
 
         // [수정] 로프 입자를 밀 때 쓰는 헬퍼.
         // Verlet에서는 위치만 바꾸면 그 변화량이 그대로 다음 스텝의 속도가 되어버린다.
         // (기존 코드의 p.y += 1.8이 반복 4회 누적되면 스텝당 7.2px = 초당 430px의 속도 주입!)
         // 여기서는 oldx/oldy도 함께 옮겨서, 밀어낸 양 중 일부만 속도로 남게 한다.
-        function pushRopeParticle(p, dx, dy) {
+        function pushRopeParticle(p, dx, dy) {{
             if (p.isLeftPin || p.isRightPin) return;
             p.x += dx;
             p.y += dy;
             p.oldx += dx * (1 - ROPE_PUSH_VEL_RATIO);
             p.oldy += dy * (1 - ROPE_PUSH_VEL_RATIO);
-        }
+        }}
 
         resetGame();
 
-        function handleInput() {
+        function handleInput() {{
             // 좌측 축 (A/D): 키 입력으로 가속하고, 손을 떼면 서서히 감속(관성)
             if (keys['a'] || keys['A']) leftPinVX -= pinAccel;
             if (keys['d'] || keys['D']) leftPinVX += pinAccel;
@@ -644,39 +667,39 @@ html_code = """
             rightPinX += rightPinVX;
 
             // 화면 경계
-            if (leftPinX < 30) { leftPinX = 30; leftPinVX = 0; }
-            if (rightPinX > canvas.width - 30) { rightPinX = canvas.width - 30; rightPinVX = 0; }
+            if (leftPinX < 30) {{ leftPinX = 30; leftPinVX = 0; }}
+            if (rightPinX > canvas.width - 30) {{ rightPinX = canvas.width - 30; rightPinVX = 0; }}
 
             // 두 축이 겹치지 않도록 최소 간격 유지
-            if (rightPinX - leftPinX < MIN_SPAN) {
+            if (rightPinX - leftPinX < MIN_SPAN) {{
                 let deficit = MIN_SPAN - (rightPinX - leftPinX);
                 leftPinX -= deficit / 2;
                 rightPinX += deficit / 2;
                 leftPinVX = 0;
                 rightPinVX = 0;
-            }
+            }}
 
             // [수정] 최대 간격 제한 — 이게 폭주의 근본 원인이었다.
             // 로프의 실제 길이(ROPE_TOTAL_LEN)보다 축을 더 벌리면 제약 조건이 물리적으로
             // 만족 불가능해지고, 해결기가 매 반복 입자를 크게 끌어당겨 속도가 발산한다.
             // 바깥으로 나가려던 축을 그 비율만큼 되돌려서 자연스럽게 "다 당겨진 느낌"으로 멈춘다.
             let span = rightPinX - leftPinX;
-            if (span > MAX_SPAN) {
+            if (span > MAX_SPAN) {{
                 let over = span - MAX_SPAN;
                 let leftOutward = Math.max(0, -leftPinVX);  // 왼쪽 축이 바깥(왼쪽)으로 가는 속도
                 let rightOutward = Math.max(0, rightPinVX); // 오른쪽 축이 바깥(오른쪽)으로 가는 속도
                 let total = leftOutward + rightOutward;
 
-                if (total > 1e-6) {
+                if (total > 1e-6) {{
                     leftPinX += over * (leftOutward / total);
                     rightPinX -= over * (rightOutward / total);
-                } else {
+                }} else {{
                     leftPinX += over / 2;
                     rightPinX -= over / 2;
-                }
+                }}
                 if (leftPinVX < 0) leftPinVX = 0;
                 if (rightPinVX > 0) rightPinVX = 0;
-            }
+            }}
 
             // [중요] 핀은 update()를 건너뛰므로 oldx/oldy가 갱신되지 않는다.
             // 그런데 아래 충돌 검사에서 로프의 이동량을 (x - oldx)로 추정하기 때문에,
@@ -694,10 +717,10 @@ html_code = """
             rightPin.oldy = rightPin.y;
             rightPin.x = rightPinX;
             rightPin.y = pinsY;
-        }
+        }}
 
         // 물리/게임 로직 한 스텝 (항상 동일한 "가상 시간" 단위로 실행됨 -> 기기 성능과 무관)
-        function step() {
+        function step() {{
             if (isLobby || isGameOver) return;
 
             gameSteps++;
@@ -715,33 +738,33 @@ html_code = """
             // 1. 물체 생성 (카운트다운 방식: currentSpawnInterval이 난이도에 따라 매 프레임 바뀌어도
             //    나머지 연산(%)처럼 정확히 0이 되는 시점을 놓쳐 스폰이 씹히는 문제가 없음)
             spawnCountdown--;
-            if (spawnCountdown <= 0) {
+            if (spawnCountdown <= 0) {{
                 spawnCountdown += currentSpawnInterval;
                 let spawnX = 60 + Math.random() * (canvas.width - 120);
                 let rand = Math.random();
                 let appleChance = (1 - currentBombChance) * 0.75; // 사과:별 비율은 기존처럼 3:1 유지
                 let type = rand < appleChance ? 'apple' : (rand < 1 - currentBombChance ? 'star' : 'bomb');
                 fallingItems.push(new FallingItem(spawnX, -20, type));
-            }
+            }}
 
             // 2. 물리 연산
             particles.forEach(p => p.update());
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 8; i++) {{
                 constraints.forEach(c => c.resolve());
-            }
+            }}
 
             fallingItems.forEach(item => item.update());
 
             // 3. 로프와 원형 물체 충돌 처리
-            fallingItems.forEach(item => {
+            fallingItems.forEach(item => {{
                 let anyCollision = false;
                 let lastBest = null;
 
-                for (let iter = 0; iter < SQUEEZE_ITERATIONS; iter++) {
+                for (let iter = 0; iter < SQUEEZE_ITERATIONS; iter++) {{
                     let best = null;
-                    let pathEnd = { x: item.x, y: item.y };
+                    let pathEnd = {{ x: item.x, y: item.y }};
 
-                    for (let i = 0; i < particles.length - 1; i++) {
+                    for (let i = 0; i < particles.length - 1; i++) {{
                         let ropeP1 = particles[i], ropeP2 = particles[i + 1];
 
                         // [수정] 로프 자체의 이번 스텝 이동량만큼 아이템의 출발점을 보정해서
@@ -756,12 +779,12 @@ html_code = """
                         // 기존에는 매 반복마다 같은 "이전 위치"를 재사용해서 동일한 경로가 계속
                         // 재검출됐고, 그 결과 로프를 미는 힘이 반복 횟수만큼 누적되어 튀어올랐다.
                         let pathStart = (iter === 0)
-                            ? { x: item.prevX + segDispX, y: item.prevY + segDispY }
-                            : { x: item.x, y: item.y };
+                            ? {{ x: item.prevX + segDispX, y: item.prevY + segDispY }}
+                            : {{ x: item.x, y: item.y }};
 
                         let res = closestDistBetweenSegments(pathStart, pathEnd, ropeP1, ropeP2);
 
-                        if (res.dist < item.radius + CONTACT_SKIN && (!best || res.dist < best.dist)) {
+                        if (res.dist < item.radius + CONTACT_SKIN && (!best || res.dist < best.dist)) {{
                             let segDx = ropeP2.x - ropeP1.x, segDy = ropeP2.y - ropeP1.y;
                             let segLen = Math.hypot(segDx, segDy) || 1;
                             let tx = segDx / segLen; // 세그먼트 접선 방향(정규화)
@@ -776,14 +799,14 @@ html_code = """
                             let refY = pathStart.y - ropeP1.y;
                             let side = (refX * nx0 + refY * ny0) >= 0 ? 1 : -1;
 
-                            best = {
+                            best = {{
                                 dist: res.dist, t: res.t,
                                 nx: nx0 * side, ny: ny0 * side, tx, ty,
                                 p1: ropeP1, p2: ropeP2,
                                 contactX: res.c2x, contactY: res.c2y
-                            };
-                        }
-                    }
+                            }};
+                        }}
+                    }}
 
                     if (!best) break; // 더 이상 겹치는 세그먼트가 없으면 수렴 완료
 
@@ -798,99 +821,99 @@ html_code = """
                     let push = ROPE_PUSH / SQUEEZE_ITERATIONS;
                     pushRopeParticle(best.p1, -best.nx * push * (1 - best.t), -best.ny * push * (1 - best.t));
                     pushRopeParticle(best.p2, -best.nx * push * best.t, -best.ny * push * best.t);
-                }
+                }}
 
-                if (anyCollision) {
+                if (anyCollision) {{
                     // [수정] 법선 방향으로 파고드는 속도 성분만 반사시킨다.
                     // 기존의 item.vy = -item.vy * 0.2는 로프가 기울어져 있어도 무조건 수직 성분만
                     // 뒤집어서, 경사면에서 엉뚱한 방향으로 에너지가 더해지며 튀어오르는 원인이 됐다.
                     let vn = item.vx * lastBest.nx + item.vy * lastBest.ny;
-                    if (vn < 0) {
+                    if (vn < 0) {{
                         item.vx -= (1 + RESTITUTION) * vn * lastBest.nx;
                         item.vy -= (1 + RESTITUTION) * vn * lastBest.ny;
-                    }
+                    }}
                     // 경사 방향(접선)을 따라 미끄러지는 힘: 로프가 기운 쪽으로만 슬라이드됨
                     item.vx += lastBest.tx * lastBest.ty * SLIDE_FACTOR;
-                }
+                }}
 
                 // [수정] 축(핀) 자체와의 충돌 처리.
                 // 기존에는 축이 화면에 원으로 그려지기만 하고 충돌체가 없었다. 그래서 로프와 축이
                 // 만나는 지점에 아이템이 끼면 빠져나갈 곳이 없어 로프를 뚫고 지나가버렸다.
                 // (실제로 남아있던 관통은 전부 축에서 약 20px 이내 지점에 몰려 있었다)
-                for (const pin of [{ x: leftPinX, y: pinsY }, { x: rightPinX, y: pinsY }]) {
+                for (const pin of [{{ x: leftPinX, y: pinsY }}, {{ x: rightPinX, y: pinsY }}]) {{
                     let dx = item.x - pin.x, dy = item.y - pin.y;
                     let d = Math.hypot(dx, dy);
                     let minD = item.radius + PIN_RADIUS;
-                    if (d < minD) {
+                    if (d < minD) {{
                         let nx = d > 1e-6 ? dx / d : 0;
                         let ny = d > 1e-6 ? dy / d : -1;
                         item.x = pin.x + nx * minD;
                         item.y = pin.y + ny * minD;
                         let vn = item.vx * nx + item.vy * ny;
-                        if (vn < 0) {
+                        if (vn < 0) {{
                             item.vx -= (1 + RESTITUTION) * vn * nx;
                             item.vy -= (1 + RESTITUTION) * vn * ny;
-                        }
-                    }
-                }
+                        }}
+                    }}
+                }}
 
                 item.isOnRope = anyCollision;
                 if (item.isOnRope) item.hasTouchedRope = true;
-            });
+            }});
 
             // 4. 아이템 2초 안착 / 폭발 / 낙하 판정
-            fallingItems = fallingItems.filter(item => {
-                if (item.type === 'apple' || item.type === 'star') {
+            fallingItems = fallingItems.filter(item => {{
+                if (item.type === 'apple' || item.type === 'star') {{
                     // 한 번이라도 로프에 닿았다면, 이후로는 위아래로 미세하게 튕기거나 로프 표면에서
                     // 살짝 떠 있어도 상관없이 계속 카운트가 진행된다. x좌표가 로프의 좌우 범위를
                     // (여유값 XRANGE_MARGIN만큼) 완전히 벗어났을 때만 카운트를 리셋한다.
-                    if (item.hasTouchedRope) {
-                        if (item.x < leftPinX - XRANGE_MARGIN || item.x > rightPinX + XRANGE_MARGIN) {
+                    if (item.hasTouchedRope) {{
+                        if (item.x < leftPinX - XRANGE_MARGIN || item.x > rightPinX + XRANGE_MARGIN) {{
                             item.touchTimer = 0;
-                        } else {
+                        }} else {{
                             item.touchTimer++;
                             // SUCCESS_STEPS(2초) 유지 성공 시 점수 획득
-                            if (item.touchTimer >= SUCCESS_STEPS) {
+                            if (item.touchTimer >= SUCCESS_STEPS) {{
                                 let color = item.type === 'apple' ? '#22c55e' : '#eab308';
                                 createParticles(item.x, item.y, color, 20);
                                 score += (item.type === 'apple' ? 15 : 35);
                                 updateUI();
                                 return false;
-                            }
-                        }
-                    }
-                } else if (item.type === 'bomb') {
-                    if (item.isOnRope) {
+                            }}
+                        }}
+                    }}
+                }} else if (item.type === 'bomb') {{
+                    if (item.isOnRope) {{
                         createParticles(item.x, item.y, '#ef4444', 25);
                         lives--;
                         updateUI();
                         return false;
-                    }
-                }
+                    }}
+                }}
 
-                if (item.y > canvas.height + 30) {
-                    if (item.type === 'apple' || item.type === 'star') {
+                if (item.y > canvas.height + 30) {{
+                    if (item.type === 'apple' || item.type === 'star') {{
                         lives--;
                         updateUI();
-                    }
+                    }}
                     return false;
-                }
+                }}
 
                 return true;
-            });
+            }});
 
             if (lives <= 0) isGameOver = true;
-        }
+        }}
 
-        function draw() {
+        function draw() {{
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // 이펙트 파티클
-            effects = effects.filter(e => {
+            effects = effects.filter(e => {{
                 e.update();
                 e.draw();
                 return e.alpha > 0;
-            });
+            }});
 
             // 로프 그리기 — 인디고 계열로 화이트 톤 통일
             ctx.beginPath();
@@ -900,9 +923,9 @@ html_code = """
             ctx.lineJoin = 'round';
 
             ctx.moveTo(particles[0].x, particles[0].y);
-            for (let i = 1; i < particles.length; i++) {
+            for (let i = 1; i < particles.length; i++) {{
                 ctx.lineTo(particles[i].x, particles[i].y);
-            }
+            }}
             ctx.stroke();
 
             // 좌 핀 (파랑)
@@ -929,14 +952,14 @@ html_code = """
             fallingItems.forEach(item => item.draw());
 
             // Game Over — 로비 화면으로 복귀
-            if (isGameOver) {
+            if (isGameOver) {{
                 document.getElementById('startBtn').textContent = '🔄 다시 시작';
                 document.getElementById('lobby').style.display = 'flex';
                 document.getElementById('hint').style.visibility = 'hidden';
                 isLobby = true;
                 isGameOver = false;
-            }
-        }
+            }}
+        }}
 
         // ---- 고정 타임스텝 메인 루프 ----
         // requestAnimationFrame은 화면 주사율에 따라 초당 호출 횟수가 다르지만(60Hz/120Hz/144Hz 등),
@@ -944,27 +967,27 @@ html_code = """
         let lastTime = performance.now();
         let accumulator = 0;
 
-        function loop(now) {
+        function loop(now) {{
             let delta = now - lastTime;
             lastTime = now;
 
             // 탭 전환 등으로 delta가 비정상적으로 커지는 경우 대비 (스파이럴 오브 데스 방지)
-            if (delta > STEP_MS * MAX_STEPS_PER_FRAME) {
+            if (delta > STEP_MS * MAX_STEPS_PER_FRAME) {{
                 delta = STEP_MS * MAX_STEPS_PER_FRAME;
-            }
+            }}
 
             accumulator += delta;
 
             let steps = 0;
-            while (accumulator >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
+            while (accumulator >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {{
                 step();
                 accumulator -= STEP_MS;
                 steps++;
-            }
+            }}
 
             draw();
             requestAnimationFrame(loop);
-        }
+        }}
 
         requestAnimationFrame(loop);
     </script>
