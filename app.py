@@ -11,7 +11,7 @@ def _img_b64(path, mime):
     data = open(path, "rb").read()
     return f"data:{mime};base64,{_b64.b64encode(data).decode()}"
 
-_sheet_src = _img_b64("assets/64x64.webp", "image/webp")
+_sheet_src = _img_b64("assets/64x64.webp", "image/png")
 
 html_code = f"""
 <!DOCTYPE html>
