@@ -408,9 +408,15 @@ html_code = f"""
         // 입자를 크게 끌어당기고 그 위치 변화가 Verlet 속도로 그대로 변환되면서
         // 로프가 채찍처럼 폭주 -> 아이템이 튕겨나가거나 로프를 뚫는 근본 원인이었다.
         const ropePoints = 28;
-        const restLen = 17;
-        const ROPE_TOTAL_LEN = (ropePoints - 1) * restLen;   // 27 * 17 = 459px
-        const MAX_SPAN = ROPE_TOTAL_LEN * 0.97;              // 약 445px — 이 이상으로는 절대 벌어지지 않음
+
+        // [수정] 로프 길이를 축 간격에 맞춰 실시간으로 조절한다 (릴에 감았다 푸는 느낌).
+        // 기존에는 로프 총 길이가 459px로 고정이라, 축을 120px까지 좁히면 로프가 4배 가까이
+        // 남아돌면서 스스로 겹겹이 접혔고(자기 교차), 그 틈으로 아이템이 빠져나갔다.
+        // 항상 간격 대비 SAG_FACTOR 만큼만 여유를 주면 접힐 슬랙 자체가 생기지 않는다.
+        const SAG_FACTOR = 1.10;   // 로프 길이 = 축 간격 × 1.10 (10% 여유 → 적당한 처짐)
+        const REST_LERP  = 0.12;   // 목표 길이로 부드럽게 수렴 (급변 시 튐 방지)
+        const MIN_REST   = 3;      // 세그먼트 최소 길이
+        let currentRestLen = 17;   // 매 스텝 갱신됨
         // [수정] 최소 간격을 175px로 상향.
         // 정적 상태에서는 어떤 간격에서도 세그먼트 교차가 없지만, 축을 급격히 좁힐 때
         // 로프 관성으로 세그먼트가 일시적으로 교차하면서 관통이 발생한다.
@@ -648,7 +654,7 @@ html_code = f"""
             }}
 
             for (let i = 0; i < ropePoints - 1; i++) {{
-                constraints.push(new Constraint(particles[i], particles[i + 1], restLen));
+                constraints.push(new Constraint(particles[i], particles[i + 1], currentRestLen));
             }}
         }}
 
@@ -774,27 +780,9 @@ html_code = f"""
                 }}
             }}
 
-            // [수정] 최대 간격 제한 — 이게 폭주의 근본 원인이었다.
-            // 로프의 실제 길이(ROPE_TOTAL_LEN)보다 축을 더 벌리면 제약 조건이 물리적으로
-            // 만족 불가능해지고, 해결기가 매 반복 입자를 크게 끌어당겨 속도가 발산한다.
-            // 바깥으로 나가려던 축을 그 비율만큼 되돌려서 자연스럽게 "다 당겨진 느낌"으로 멈춘다.
-            let span = rightPinX - leftPinX;
-            if (span > MAX_SPAN) {{
-                let over = span - MAX_SPAN;
-                let leftOutward = Math.max(0, -leftPinVX);  // 왼쪽 축이 바깥(왼쪽)으로 가는 속도
-                let rightOutward = Math.max(0, rightPinVX); // 오른쪽 축이 바깥(오른쪽)으로 가는 속도
-                let total = leftOutward + rightOutward;
-
-                if (total > 1e-6) {{
-                    leftPinX += over * (leftOutward / total);
-                    rightPinX -= over * (rightOutward / total);
-                }} else {{
-                    leftPinX += over / 2;
-                    rightPinX -= over / 2;
-                }}
-                if (leftPinVX < 0) leftPinVX = 0;
-                if (rightPinVX > 0) rightPinVX = 0;
-            }}
+            // [수정] 최대 간격 제한 제거.
+            // 로프 길이가 간격에 맞춰 늘어나므로 더 이상 "당길 수 없는 길이"가 존재하지 않는다.
+            // 이제 축은 화면 경계까지 자유롭게 벌릴 수 있다 (조작 범위가 크게 넓어짐).
 
             // [중요] 핀은 update()를 건너뛰므로 oldx/oldy가 갱신되지 않는다.
             // 그런데 아래 충돌 검사에서 로프의 이동량을 (x - oldx)로 추정하기 때문에,
@@ -829,6 +817,17 @@ html_code = f"""
             currentItemGravity = BASE_ITEM_GRAVITY + (MAX_ITEM_GRAVITY - BASE_ITEM_GRAVITY) * difficulty;
 
             handleInput();
+
+            // [수정] 로프 길이를 현재 축 간격에 맞춰 부드럽게 조절한다.
+            // 항상 간격 대비 SAG_FACTOR 만큼만 여유를 유지하므로, 축을 좁혀도 로프가
+            // 남아돌아 스스로 접히는 일(자기 교차)이 없어지고 그 틈으로 아이템이
+            // 빠져나가는 관통도 사라진다. 반대로 넓게 벌려도 팽팽하게 따라 늘어난다.
+            {{
+                let span = rightPinX - leftPinX;
+                let targetRest = Math.max(MIN_REST, span * SAG_FACTOR / (ropePoints - 1));
+                currentRestLen += (targetRest - currentRestLen) * REST_LERP;
+                for (const c of constraints) c.length = currentRestLen;
+            }}
 
             // 1. 물체 생성 (카운트다운 방식: currentSpawnInterval이 난이도에 따라 매 프레임 바뀌어도
             //    나머지 연산(%)처럼 정확히 0이 되는 시점을 놓쳐 스폰이 씹히는 문제가 없음)
@@ -879,7 +878,11 @@ html_code = f"""
 
                         let res = closestDistBetweenSegments(pathStart, pathEnd, ropeP1, ropeP2);
 
-                        if (res.dist < item.radius + CONTACT_SKIN && (!best || res.dist < best.dist)) {{
+                        // [수정] 바깥 조건에 "가능한 최대 두께"를 써야 아랫면 추가 두께가
+                        // 실제로 동작한다. 이전에는 여기서 CONTACT_SKIN(3)으로 먼저 걸러버려서
+                        // 안쪽의 CONTACT_SKIN_BOTTOM이 도달조차 못 하는 죽은 코드였다.
+                        const MAX_SKIN = CONTACT_SKIN + CONTACT_SKIN_BOTTOM;
+                        if (res.dist < item.radius + MAX_SKIN) {{
                             let segDx = ropeP2.x - ropeP1.x, segDy = ropeP2.y - ropeP1.y;
                             let segLen = Math.hypot(segDx, segDy) || 1;
                             let tx = segDx / segLen;
@@ -890,9 +893,10 @@ html_code = f"""
                             let side = (refX * nx0 + refY * ny0) >= 0 ? 1 : -1;
                             let nx = nx0 * side, ny = ny0 * side;
 
-                            // 아랫면(ny > 0 = 아래에서 올라오는 방향)일 때 두께를 추가로 검사
+                            // 아랫면(ny > 0 = 아이템이 로프 아래쪽에 있음)일 때만 두껍게
                             let skin = (ny > 0) ? CONTACT_SKIN + CONTACT_SKIN_BOTTOM : CONTACT_SKIN;
                             if (res.dist >= item.radius + skin) continue;
+                            if (best && res.dist >= best.dist) continue;
 
                             best = {{ dist: res.dist, t: res.t, nx, ny, tx, ty,
                                       p1: ropeP1, p2: ropeP2,
