@@ -11,6 +11,12 @@ def _img_b64(path, mime):
     data = open(path, "rb").read()
     return f"data:{mime};base64,{_b64.b64encode(data).decode()}"
 
+_bg_layers = [
+    _img_b64("assets/1000010249.png", "image/png"),  # layer 0 — 뒤 구름 (가장 뒤)
+    _img_b64("assets/1000010250.png", "image/png"),  # layer 1 — 거의 투명
+    _img_b64("assets/1000010251.png", "image/png"),  # layer 2 — 하늘 배경
+    _img_b64("assets/1000010252.png", "image/png"),  # layer 3 — 앞 구름 (가장 앞)
+]
 _apple_src   = _img_b64("assets/Apple.png",   "image/png")
 _crystal_src = _img_b64("assets/Crystal.png", "image/png")
 _bomb_src    = _img_b64("assets/Bomb.png",    "image/png")
@@ -992,8 +998,54 @@ html_code = f"""
             if (lives <= 0) isGameOver = true;
         }}
 
+        // ---- 배경 레이어 (패럴랙스) ----
+        // 숫자 큰 파일이 앞(위)에, 작은 파일이 뒤(아래)에 그려진다.
+        // speeds: 뒤 레이어일수록 느리게 스크롤해서 원근감(시차) 효과를 준다.
+        const BG_LAYERS = [
+            {{ src: "{_bg_layers[0]}", speed: 0.2 }},  // 1000010249 — 가장 뒤
+            {{ src: "{_bg_layers[1]}", speed: 0.4 }},  // 1000010250
+            {{ src: "{_bg_layers[2]}", speed: 0.6 }},  // 1000010251
+            {{ src: "{_bg_layers[3]}", speed: 1.0 }},  // 1000010252 — 가장 앞
+        ].map(l => {{
+            const img = new Image();
+            img.src = l.src;
+            return {{ img, speed: l.speed, offset: 0 }};
+        }});
+
+        function drawBackground() {{
+            // 가장 뒤 레이어(0번)를 먼저 그려 배경색을 채움
+            // 투명 픽셀이 있을 수 있으니 흰 배경을 먼저 깔아둔다
+            ctx.fillStyle = '#a8c8d8';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (const layer of BG_LAYERS) {{
+                const {{ img, speed }} = layer;
+                if (!img.complete || !img.naturalWidth) continue;
+
+                const W = img.naturalWidth;
+                const H = img.naturalHeight;
+
+                // 게임 중일 때만 오프셋 전진 (로비에서는 정지)
+                if (!isLobby) layer.offset = (layer.offset + speed) % W;
+
+                // 캔버스 크기에 맞게 세로 스케일 (가로는 타일링)
+                const scale = canvas.height / H;
+                const dw = W * scale;
+                const dh = canvas.height;
+
+                // 왼쪽으로 스크롤 (오프셋만큼 왼쪽에서 시작)
+                const startX = -(layer.offset * scale) % dw;
+                for (let x = startX; x < canvas.width; x += dw) {{
+                    ctx.drawImage(img, x, 0, dw, dh);
+                }}
+            }}
+        }}
+
         function draw() {{
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 배경 (가장 먼저 그려서 모든 요소 뒤에 위치)
+            drawBackground();
 
             // 이펙트 파티클
             effects = effects.filter(e => {{
