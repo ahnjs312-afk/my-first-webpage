@@ -123,9 +123,9 @@ html_code = f"""
             position: absolute;
             top: 0; left: 0;
             width: 850px; height: 580px;
-            background: var(--surface);
+            background: transparent;
             border-radius: var(--radius-md);
-            border: 1px solid var(--border);
+            border: none;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -135,6 +135,17 @@ html_code = f"""
         }}
 
         /* ── 로비 씬 ───────────────────────────────────────── */
+        .lobby-panel {{
+            background: rgba(255,255,255,0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.6);
+            border-radius: var(--radius-lg);
+            padding: 44px 64px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }}
         .lobby-title {{
             font-size: 36px;
             font-weight: 900;
@@ -156,6 +167,17 @@ html_code = f"""
         }}
 
         /* ── 설명 씬 ───────────────────────────────────────── */
+        .howto-panel {{
+            background: rgba(255,255,255,0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.6);
+            border-radius: var(--radius-lg);
+            padding: 36px 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }}
         .howto-title {{
             font-size: 13px;
             font-weight: 700;
@@ -266,85 +288,89 @@ html_code = f"""
 
         <!-- 씬 1: 로비 -->
         <div id="scene-lobby" class="scene">
-            <div class="lobby-title">Rope Balance Catcher</div>
-            <div class="lobby-sub">Balance items on the rope to score</div>
-            <div class="lobby-btns">
-                <button class="btn-primary" id="startBtn" onclick="startGame()">Play</button>
-                <button class="btn-ghost" onclick="showScene('scene-howto')">How to play</button>
+            <div class="lobby-panel">
+                <div class="lobby-title">Rope Balance Catcher</div>
+                <div class="lobby-sub">Balance items on the rope to score</div>
+                <div class="lobby-btns">
+                    <button class="btn-primary" id="startBtn" onclick="startGame()">Play</button>
+                    <button class="btn-ghost" onclick="showScene('scene-howto')">How to play</button>
+                </div>
             </div>
         </div>
 
         <!-- 씬 2: 설명 -->
         <div id="scene-howto" class="scene" style="display:none;">
-            <div class="howto-title">How to play</div>
-            <div class="howto-grid">
+            <div class="howto-panel">
+                <div class="howto-title">How to play</div>
+                <div class="howto-grid">
 
-                <!-- 조작 -->
-                <div>
-                    <div class="howto-section-label">Controls</div>
-                    <div class="howto-row">
-                        <span>Left anchor</span>
-                        <div class="howto-key"><kbd>A</kbd><kbd>D</kbd></div>
+                    <!-- 조작 -->
+                    <div>
+                        <div class="howto-section-label">Controls</div>
+                        <div class="howto-row">
+                            <span>Left anchor</span>
+                            <div class="howto-key"><kbd>A</kbd><kbd>D</kbd></div>
+                        </div>
+                        <div class="howto-row">
+                            <span>Right anchor</span>
+                            <div class="howto-key"><kbd>◀</kbd><kbd>▶</kbd></div>
+                        </div>
                     </div>
-                    <div class="howto-row">
-                        <span>Right anchor</span>
-                        <div class="howto-key"><kbd>◀</kbd><kbd>▶</kbd></div>
+
+                    <!-- 아이템 -->
+                    <div>
+                        <div class="howto-section-label">Items</div>
+                        <div class="howto-row">
+                            <span>Apple — hold 2s</span>
+                            <span class="badge badge-green">+15</span>
+                        </div>
+                        <div class="howto-row">
+                            <span>Crystal — hold 2s</span>
+                            <span class="badge badge-yellow">+35</span>
+                        </div>
+                        <div class="howto-row">
+                            <span>Bomb — avoid</span>
+                            <span class="badge badge-red">−1 life</span>
+                        </div>
                     </div>
+
+                    <!-- 규칙 -->
+                    <div>
+                        <div class="howto-section-label">Rules</div>
+                        <div class="howto-row">
+                            <span>Starting lives</span>
+                            <span style="font-weight:700;">3</span>
+                        </div>
+                        <div class="howto-row">
+                            <span>Drop penalty</span>
+                            <span class="badge badge-red">−1 life</span>
+                        </div>
+                        <div class="howto-row">
+                            <span>Difficulty</span>
+                            <span style="color:var(--text-muted);font-size:12px;">Increases over time</span>
+                        </div>
+                    </div>
+
+                    <!-- 팁 -->
+                    <div>
+                        <div class="howto-section-label">Tips</div>
+                        <div class="howto-row">
+                            <span>Keep rope taut</span>
+                            <span style="color:var(--text-muted);font-size:12px;">Wider = more stable</span>
+                        </div>
+                        <div class="howto-row">
+                            <span>Watch the arc</span>
+                            <span style="color:var(--text-muted);font-size:12px;">Shows 2s progress</span>
+                        </div>
+                        <div class="howto-row">
+                            <span>Crystal scores</span>
+                            <span style="color:var(--text-muted);font-size:12px;">2× more than apple</span>
+                        </div>
+                    </div>
+
                 </div>
-
-                <!-- 아이템 -->
-                <div>
-                    <div class="howto-section-label">Items</div>
-                    <div class="howto-row">
-                        <span>Apple — hold 2s</span>
-                        <span class="badge badge-green">+15</span>
-                    </div>
-                    <div class="howto-row">
-                        <span>Crystal — hold 2s</span>
-                        <span class="badge badge-yellow">+35</span>
-                    </div>
-                    <div class="howto-row">
-                        <span>Bomb — avoid</span>
-                        <span class="badge badge-red">−1 life</span>
-                    </div>
-                </div>
-
-                <!-- 규칙 -->
-                <div>
-                    <div class="howto-section-label">Rules</div>
-                    <div class="howto-row">
-                        <span>Starting lives</span>
-                        <span style="font-weight:700;">3</span>
-                    </div>
-                    <div class="howto-row">
-                        <span>Drop penalty</span>
-                        <span class="badge badge-red">−1 life</span>
-                    </div>
-                    <div class="howto-row">
-                        <span>Difficulty</span>
-                        <span style="color:var(--text-muted);font-size:12px;">Increases over time</span>
-                    </div>
-                </div>
-
-                <!-- 팁 -->
-                <div>
-                    <div class="howto-section-label">Tips</div>
-                    <div class="howto-row">
-                        <span>Keep rope taut</span>
-                        <span style="color:var(--text-muted);font-size:12px;">Wider = more stable</span>
-                    </div>
-                    <div class="howto-row">
-                        <span>Watch the arc</span>
-                        <span style="color:var(--text-muted);font-size:12px;">Shows 2s progress</span>
-                    </div>
-                    <div class="howto-row">
-                        <span>Crystal scores</span>
-                        <span style="color:var(--text-muted);font-size:12px;">2× more than apple</span>
-                    </div>
-                </div>
-
+                <button class="btn-ghost" onclick="showScene('scene-lobby')">Back</button>
             </div>
-            <button class="btn-ghost" onclick="showScene('scene-lobby')">Back</button>
         </div>
 
         <canvas id="canvas" width="850" height="580" tabindex="0"></canvas>
@@ -1013,10 +1039,10 @@ html_code = f"""
         // 숫자 큰 파일이 앞(위)에, 작은 파일이 뒤(아래)에 그려진다.
         // speeds: 뒤 레이어일수록 느리게 스크롤해서 원근감(시차) 효과를 준다.
         const BG_LAYERS = [
-            {{ src: "{_bg_layers[0]}", speed: 0.0 }},  // 1.png 하늘 배경 — 고정
-            {{ src: "{_bg_layers[1]}", speed: 0.3 }},  // 2.png 뒤 구름 — 느리게
-            {{ src: "{_bg_layers[2]}", speed: 0.15 }}, // 3.png 투명 레이어 — 천천히
-            {{ src: "{_bg_layers[3]}", speed: 0.9 }},  // 4.png 앞 구름 — 빠르게
+            {{ src: "{_bg_layers[0]}", speed: 0.1 }},  // 1.png 하늘 배경
+            {{ src: "{_bg_layers[1]}", speed: 0.2 }},  // 2.png 뒤 구름
+            {{ src: "{_bg_layers[2]}", speed: 0.3 }},  // 3.png 투명 레이어
+            {{ src: "{_bg_layers[3]}", speed: 0.4 }},  // 4.png 앞 구름
         ].map(l => {{
             const img = new Image();
             img.src = l.src;
@@ -1024,8 +1050,6 @@ html_code = f"""
         }});
 
         function drawBackground() {{
-            // 가장 뒤 레이어(0번)를 먼저 그려 배경색을 채움
-            // 투명 픽셀이 있을 수 있으니 흰 배경을 먼저 깔아둔다
             ctx.fillStyle = '#a8c8d8';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1036,15 +1060,13 @@ html_code = f"""
                 const W = img.naturalWidth;
                 const H = img.naturalHeight;
 
-                // 게임 중일 때만 오프셋 전진 (로비에서는 정지)
-                if (!isLobby) layer.offset = (layer.offset + speed) % W;
+                // 로비/게임 구분 없이 항상 스크롤
+                layer.offset = (layer.offset + speed) % W;
 
-                // 캔버스 크기에 맞게 세로 스케일 (가로는 타일링)
                 const scale = canvas.height / H;
                 const dw = W * scale;
                 const dh = canvas.height;
 
-                // 왼쪽으로 스크롤 (오프셋만큼 왼쪽에서 시작)
                 const startX = -(layer.offset * scale) % dw;
                 for (let x = startX; x < canvas.width; x += dw) {{
                     ctx.drawImage(img, x, 0, dw, dh);
