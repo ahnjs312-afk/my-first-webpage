@@ -11,8 +11,9 @@ def _img_b64(path, mime):
     data = open(path, "rb").read()
     return f"data:{mime};base64,{_b64.b64encode(data).decode()}"
 
-_apple_src  = _img_b64("assets/Apple.png",   "image/png")
+_apple_src   = _img_b64("assets/Apple.png",   "image/png")
 _crystal_src = _img_b64("assets/Crystal.png", "image/png")
+_bomb_src    = _img_b64("assets/Bomb.png",    "image/png")
 
 html_code = f"""
 <!DOCTYPE html>
@@ -284,6 +285,7 @@ html_code = f"""
         // 사과·크리스탈은 개별 PNG, 폭탄은 이모지 폴백 유지
         const imgApple   = new Image(); imgApple.src   = "{_apple_src}";
         const imgCrystal = new Image(); imgCrystal.src = "{_crystal_src}";
+        const imgBomb    = new Image(); imgBomb.src    = "{_bomb_src}";
 
         // 캔버스에 포커스를 줘야 iframe 안에서 키 입력이 확실히 잡힘
         canvas.addEventListener('click', () => canvas.focus());
@@ -511,8 +513,10 @@ html_code = f"""
                     ctx.drawImage(imgApple, dx, dy, d, d);
                 }} else if (this.type === 'star' && imgCrystal.complete && imgCrystal.naturalWidth > 0) {{
                     ctx.drawImage(imgCrystal, dx, dy, d, d);
+                }} else if (this.type === 'bomb' && imgBomb.complete && imgBomb.naturalWidth > 0) {{
+                    ctx.drawImage(imgBomb, dx, dy, d, d);
                 }} else {{
-                    // 폭탄 또는 이미지 로드 전 폴백
+                    // 이미지 로드 전 폴백
                     ctx.font = "18px sans-serif";
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
