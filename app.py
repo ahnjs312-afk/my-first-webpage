@@ -109,6 +109,8 @@ html_code = f"""
             box-shadow: var(--shadow);
             outline: none;
             display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }}
         .hint {{
             font-size: 12px;
@@ -353,6 +355,9 @@ html_code = f"""
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+
+        // 픽셀이 뭉개지지 않고 또렷하게 (nearest-neighbor 보간)
+        ctx.imageSmoothingEnabled = false;
 
         // ---- 스프라이트 이미지 ----
         // 사과·크리스탈은 개별 PNG, 폭탄은 이모지 폴백 유지
@@ -1004,8 +1009,8 @@ html_code = f"""
         const BG_LAYERS = [
             {{ src: "{_bg_layers[0]}", speed: 0.0 }},  // 1.png 하늘 배경 — 고정
             {{ src: "{_bg_layers[1]}", speed: 0.1 }},  // 2.png 뒤 구름 — 느리게
-            {{ src: "{_bg_layers[2]}", speed: 0.2 }},  // 3.png 앞 구름 — 빠르게
-            {{ src: "{_bg_layers[3]}", speed: 0.3 }}, // 4.png 투명 레이어 — 가장 앞, 천천히
+            {{ src: "{_bg_layers[2]}", speed: 0.2 }}, // 3.png 투명 레이어 — 천천히
+            {{ src: "{_bg_layers[3]}", speed: 0.3 }},  // 4.png 앞 구름 — 빠르게
         ].map(l => {{
             const img = new Image();
             img.src = l.src;
