@@ -22,20 +22,17 @@ html_code = f"""
     <style>
         /* ── 디자인 토큰 ───────────────────────────────────── */
         :root {{
-            --bg:        #f8f9fb;       /* 페이지 배경 */
-            --surface:   #ffffff;       /* 카드·캔버스 */
-            --border:    #e4e7ed;       /* 테두리 */
+            --bg:        #f8f9fb;
+            --surface:   #ffffff;
+            --border:    #e4e7ed;
             --shadow:    0 2px 16px rgba(0,0,0,0.07);
 
-            --text-primary:   #18181b;  /* 제목·점수 */
-            --text-secondary: #52525b;  /* 설명 본문 */
-            --text-muted:     #a1a1aa;  /* 힌트 */
+            --text-primary:   #18181b;
+            --text-secondary: #52525b;
+            --text-muted:     #a1a1aa;
 
-            --accent:    #6366f1;       /* 로프·강조색 (인디고) */
-            --accent-lt: #eef2ff;       /* 액센트 연한 배경 */
-
-            --pin-l:     #3b82f6;       /* 왼쪽 핀 (파랑) */
-            --pin-r:     #f43f5e;       /* 오른쪽 핀 (로즈) */
+            --accent:    #6366f1;
+            --accent-lt: #eef2ff;
 
             --green:     #22c55e;
             --yellow:    #eab308;
@@ -46,10 +43,8 @@ html_code = f"""
             --radius-lg: 20px;
         }}
 
-        /* ── 기본 레이아웃 ─────────────────────────────────── */
-        * {{ box-sizing: border-box; }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
-            margin: 0;
             overflow: hidden;
             background: var(--bg);
             display: flex;
@@ -58,11 +53,10 @@ html_code = f"""
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }}
 
-        /* ── 인게임 상단 HUD ───────────────────────────────── */
+        /* ── HUD ───────────────────────────────────────────── */
         .hud {{
             display: flex;
             align-items: center;
-            gap: 0;
             margin-bottom: 10px;
             background: var(--surface);
             border: 1px solid var(--border);
@@ -79,11 +73,7 @@ html_code = f"""
             font-weight: 700;
             color: var(--text-primary);
         }}
-        .hud-divider {{
-            width: 1px;
-            height: 22px;
-            background: var(--border);
-        }}
+        .hud-divider {{ width: 1px; height: 22px; background: var(--border); }}
         .hud-label {{
             font-size: 11px;
             font-weight: 600;
@@ -114,16 +104,14 @@ html_code = f"""
             outline: none;
             display: block;
         }}
-
-        /* ── 힌트 ──────────────────────────────────────────── */
         .hint {{
             font-size: 12px;
             color: var(--text-muted);
             margin-top: 8px;
         }}
 
-        /* ── 로비 오버레이 ─────────────────────────────────── */
-        #lobby {{
+        /* ── 씬 공통 (로비 / 설명 오버레이) ───────────────── */
+        .scene {{
             position: absolute;
             top: 0; left: 0;
             width: 850px; height: 580px;
@@ -138,79 +126,115 @@ html_code = f"""
             user-select: none;
         }}
 
-        /* 로비 타이틀 */
-        .lobby-emoji  {{ font-size: 48px; margin-bottom: 6px; }}
-        .lobby-title  {{ font-size: 28px; font-weight: 900; color: var(--text-primary); letter-spacing: -0.5px; margin-bottom: 4px; }}
-        .lobby-sub    {{ font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }}
-
-        /* 카드 행 */
-        .lobby-cards  {{ display: flex; gap: 14px; margin-bottom: 28px; }}
-        .lobby-card {{
-            width: 218px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            padding: 16px 20px;
+        /* ── 로비 씬 ───────────────────────────────────────── */
+        .lobby-title {{
+            font-size: 36px;
+            font-weight: 900;
+            color: var(--text-primary);
+            letter-spacing: -1px;
+            margin-bottom: 8px;
         }}
-        .card-heading {{
+        .lobby-sub {{
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 48px;
+            font-weight: 400;
+        }}
+        .lobby-btns {{
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+        }}
+
+        /* ── 설명 씬 ───────────────────────────────────────── */
+        .howto-title {{
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 32px;
+        }}
+        .howto-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 48px;
+            margin-bottom: 40px;
+            width: 560px;
+        }}
+        .howto-section-label {{
             font-size: 11px;
             font-weight: 700;
             color: var(--accent);
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }}
-        .card-row {{
+        .howto-row {{
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
             font-size: 13px;
             color: var(--text-secondary);
-            line-height: 1.4;
         }}
-        .card-row:last-child {{ margin-bottom: 0; }}
+        .howto-row:last-child {{ border-bottom: none; }}
+        .howto-key {{ display: flex; gap: 4px; }}
         kbd {{
-            background: var(--surface);
+            background: var(--bg);
             color: var(--text-primary);
             border: 1px solid var(--border);
             border-bottom-width: 2px;
             border-radius: 5px;
-            padding: 2px 8px;
+            padding: 2px 9px;
             font-size: 12px;
             font-weight: 700;
             font-family: inherit;
         }}
-        .score-badge {{
+        .badge {{
+            font-size: 12px;
             font-weight: 700;
-            font-size: 13px;
-            padding: 1px 7px;
+            padding: 2px 8px;
             border-radius: 99px;
         }}
         .badge-green  {{ background: #dcfce7; color: #16a34a; }}
         .badge-yellow {{ background: #fef9c3; color: #a16207; }}
         .badge-red    {{ background: #fee2e2; color: #dc2626; }}
 
-        /* 시작 버튼 */
-        .btn-start {{
+        /* ── 버튼 공통 ─────────────────────────────────────── */
+        .btn-primary {{
             background: var(--accent);
             color: #fff;
             border: none;
-            padding: 13px 44px;
-            font-size: 16px;
-            font-weight: 800;
+            padding: 12px 40px;
+            font-size: 14px;
+            font-weight: 700;
             border-radius: 99px;
             cursor: pointer;
-            box-shadow: 0 4px 18px rgba(99,102,241,0.35);
+            box-shadow: 0 4px 18px rgba(99,102,241,0.3);
             transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
             letter-spacing: 0.3px;
         }}
-        .btn-start:hover {{
+        .btn-primary:hover {{
             background: #4f46e5;
             transform: translateY(-1px);
-            box-shadow: 0 6px 24px rgba(99,102,241,0.45);
+            box-shadow: 0 6px 24px rgba(99,102,241,0.4);
         }}
-        .btn-start:active {{ transform: translateY(0); }}
+        .btn-primary:active {{ transform: translateY(0); }}
+        .btn-ghost {{
+            background: transparent;
+            color: var(--text-muted);
+            border: none;
+            padding: 8px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 99px;
+            cursor: pointer;
+            transition: color 0.15s;
+        }}
+        .btn-ghost:hover {{ color: var(--text-secondary); }}
     </style>
 </head>
 <body>
@@ -224,58 +248,101 @@ html_code = f"""
         <div class="hud-divider"></div>
         <div class="hud-item">
             <span class="hud-label">LIVES</span>
-            <span id="lives">❤️❤️❤️</span>
+            <span id="lives">♥ ♥ ♥</span>
         </div>
-        <button class="btn-reset" onclick="startGame()">🔄 리셋</button>
+        <button class="btn-reset" onclick="startGame()">Reset</button>
     </div>
 
-    <!-- 캔버스 + 로비 래퍼 -->
+    <!-- 씬 래퍼 -->
     <div style="position: relative; width: 850px; height: 580px;">
 
-        <!-- 로비 오버레이 -->
-        <div id="lobby">
-            <div class="lobby-emoji">🪢</div>
+        <!-- 씬 1: 로비 -->
+        <div id="scene-lobby" class="scene">
             <div class="lobby-title">Rope Balance Catcher</div>
-            <div class="lobby-sub">로프 위에 물체를 2초간 올려놓으면 점수!</div>
+            <div class="lobby-sub">Balance items on the rope to score</div>
+            <div class="lobby-btns">
+                <button class="btn-primary" id="startBtn" onclick="startGame()">Play</button>
+                <button class="btn-ghost" onclick="showScene('scene-howto')">How to play</button>
+            </div>
+        </div>
 
-            <div class="lobby-cards">
+        <!-- 씬 2: 설명 -->
+        <div id="scene-howto" class="scene" style="display:none;">
+            <div class="howto-title">How to play</div>
+            <div class="howto-grid">
+
                 <!-- 조작 -->
-                <div class="lobby-card">
-                    <div class="card-heading">🎮 조작</div>
-                    <div class="card-row">
-                        <span><kbd>A</kbd> <kbd>D</kbd></span>
-                        <span>🔵 왼쪽 축 이동</span>
+                <div>
+                    <div class="howto-section-label">Controls</div>
+                    <div class="howto-row">
+                        <span>Left anchor</span>
+                        <div class="howto-key"><kbd>A</kbd><kbd>D</kbd></div>
                     </div>
-                    <div class="card-row">
-                        <span><kbd>◀</kbd> <kbd>▶</kbd></span>
-                        <span>🔴 오른쪽 축 이동</span>
+                    <div class="howto-row">
+                        <span>Right anchor</span>
+                        <div class="howto-key"><kbd>◀</kbd><kbd>▶</kbd></div>
                     </div>
                 </div>
 
                 <!-- 아이템 -->
-                <div class="lobby-card">
-                    <div class="card-heading">📦 아이템</div>
-                    <div class="card-row">🍎 사과 — 2초 유지 <span class="score-badge badge-green">+15</span></div>
-                    <div class="card-row">⭐ 별 &nbsp;— 2초 유지 <span class="score-badge badge-yellow">+35</span></div>
-                    <div class="card-row">💣 폭탄 — 닿으면 <span class="score-badge badge-red">-❤️</span></div>
+                <div>
+                    <div class="howto-section-label">Items</div>
+                    <div class="howto-row">
+                        <span>Apple — hold 2s</span>
+                        <span class="badge badge-green">+15</span>
+                    </div>
+                    <div class="howto-row">
+                        <span>Crystal — hold 2s</span>
+                        <span class="badge badge-yellow">+35</span>
+                    </div>
+                    <div class="howto-row">
+                        <span>Bomb — avoid</span>
+                        <span class="badge badge-red">−1 life</span>
+                    </div>
                 </div>
 
                 <!-- 규칙 -->
-                <div class="lobby-card">
-                    <div class="card-heading">📋 규칙</div>
-                    <div class="card-row">❤️ 목숨은 3개</div>
-                    <div class="card-row">🕳️ 사과·별이 떨어지면 <span class="score-badge badge-red">-❤️</span></div>
-                    <div class="card-row">⏱️ 갈수록 빠르고 어려워짐</div>
+                <div>
+                    <div class="howto-section-label">Rules</div>
+                    <div class="howto-row">
+                        <span>Starting lives</span>
+                        <span style="font-weight:700;">3</span>
+                    </div>
+                    <div class="howto-row">
+                        <span>Drop penalty</span>
+                        <span class="badge badge-red">−1 life</span>
+                    </div>
+                    <div class="howto-row">
+                        <span>Difficulty</span>
+                        <span style="color:var(--text-muted);font-size:12px;">Increases over time</span>
+                    </div>
                 </div>
-            </div>
 
-            <button class="btn-start" id="startBtn" onclick="startGame()">▶ 게임 시작</button>
+                <!-- 팁 -->
+                <div>
+                    <div class="howto-section-label">Tips</div>
+                    <div class="howto-row">
+                        <span>Keep rope taut</span>
+                        <span style="color:var(--text-muted);font-size:12px;">Wider = more stable</span>
+                    </div>
+                    <div class="howto-row">
+                        <span>Watch the arc</span>
+                        <span style="color:var(--text-muted);font-size:12px;">Shows 2s progress</span>
+                    </div>
+                    <div class="howto-row">
+                        <span>Crystal scores</span>
+                        <span style="color:var(--text-muted);font-size:12px;">2× more than apple</span>
+                    </div>
+                </div>
+
+            </div>
+            <button class="btn-ghost" onclick="showScene('scene-lobby')">Back</button>
         </div>
 
         <canvas id="canvas" width="850" height="580" tabindex="0"></canvas>
-    </div><!-- /relative wrapper -->
+    </div>
 
-    <div class="hint" id="hint" style="visibility:hidden;">화면을 클릭하면 키보드 입력이 활성화됩니다</div>
+    <div class="hint" id="hint" style="visibility:hidden;">Click the canvas to enable keyboard input</div>
 
     <script>
         const canvas = document.getElementById('canvas');
@@ -292,8 +359,14 @@ html_code = f"""
 
         let isLobby = true;
 
+        function showScene(id) {{
+            ['scene-lobby', 'scene-howto'].forEach(s => {{
+                document.getElementById(s).style.display = s === id ? 'flex' : 'none';
+            }});
+        }}
+
         function startGame() {{
-            document.getElementById('lobby').style.display = 'none';
+            showScene(null); // 모든 씬 숨김
             document.getElementById('hint').style.visibility = 'visible';
             isLobby = false;
             resetGame();
@@ -593,7 +666,8 @@ html_code = f"""
 
         function updateUI() {{
             document.getElementById('score').innerText = score;
-            document.getElementById('lives').innerText = "❤️".repeat(Math.max(0, lives));
+            const hearts = '♥ '.repeat(Math.max(0, lives)).trim();
+            document.getElementById('lives').innerText = hearts;
         }}
 
         // 두 선분(A: 아이템의 이동 경로, B: 로프 세그먼트) 사이의 최단 거리를 구하는
@@ -964,10 +1038,10 @@ html_code = f"""
             // 낙하 물체 그리기
             fallingItems.forEach(item => item.draw());
 
-            // Game Over — 로비 화면으로 복귀
+            // Game Over — 로비 씬으로 복귀
             if (isGameOver) {{
-                document.getElementById('startBtn').textContent = '🔄 다시 시작';
-                document.getElementById('lobby').style.display = 'flex';
+                document.getElementById('startBtn').textContent = 'Play again';
+                showScene('scene-lobby');
                 document.getElementById('hint').style.visibility = 'hidden';
                 isLobby = true;
                 isGameOver = false;
