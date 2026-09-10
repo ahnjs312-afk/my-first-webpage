@@ -480,10 +480,12 @@ html_code = f"""
                 this.radius = type === 'star' ? 15 : 18;
                 this.touchTimer = 0; // 로프 위에서 유지한 스텝 수 (SUCCESS_STEPS = 2초)
                 this.isOnRope = false;
-                this.hasTouchedRope = false; // 한 번이라도 로프에 닿았는지 여부. 한 번 닿은 뒤로는
-                                              // 수직으로 튕기거나 잠깐 떠도 상관없이, x좌표가 로프의
-                                              // 좌우 범위(leftPinX ~ rightPinX) 안에 있는 한 계속
-                                              // 카운트가 유지된다 (아래 판정 로직 참고)
+                this.hasTouchedRope = false;
+                // 회전: 낙하 중 천천히 회전하다가 로프에 닿으면 경사각으로 고정
+                this.angle    = 0;
+                this.angleVel = (Math.random() < 0.5 ? 1 : -1)
+                              * (1 + Math.random()) * Math.PI / 180; // 1~2°/스텝
+                this.angleLocked = false; // true가 되면 로프 경사각으로 고정
             }}
 
             update() {{
@@ -502,19 +504,26 @@ html_code = f"""
                 this.x += this.vx;
                 this.y += this.vy;
                 this.vx *= 0.98;
+
+                // 낙하 중에는 회전, 로프에 닿으면 각도 고정
+                if (!this.angleLocked) this.angle += this.angleVel;
             }}
 
             draw() {{
                 const d = this.radius * 2;
-                const dx = this.x - this.radius;
-                const dy = this.y - this.radius;
 
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // 중심 기준으로 그리기 (translate 후 -radius 오프셋)
+                const half = -this.radius;
                 if (this.type === 'apple' && imgApple.complete && imgApple.naturalWidth > 0) {{
-                    ctx.drawImage(imgApple, dx, dy, d, d);
+                    ctx.drawImage(imgApple, half, half, d, d);
                 }} else if (this.type === 'star' && imgCrystal.complete && imgCrystal.naturalWidth > 0) {{
-                    ctx.drawImage(imgCrystal, dx, dy, d, d);
+                    ctx.drawImage(imgCrystal, half, half, d, d);
                 }} else if (this.type === 'bomb' && imgBomb.complete && imgBomb.naturalWidth > 0) {{
-                    ctx.drawImage(imgBomb, dx, dy, d, d);
+                    ctx.drawImage(imgBomb, half, half, d, d);
                 }} else {{
                     // 이미지 로드 전 폴백
                     ctx.font = "18px sans-serif";
@@ -522,10 +531,12 @@ html_code = f"""
                     ctx.textBaseline = "middle";
                     ctx.fillText(this.type === 'apple' ? '🍎'
                                : this.type === 'star'  ? '⭐' : '💣',
-                                 this.x, this.y);
+                                 0, 0);
                 }}
 
-                // 안착 타이머 게이지
+                ctx.restore();
+
+                // 안착 타이머 게이지 (회전 없이 항상 정방향)
                 if (this.hasTouchedRope && (this.type === 'apple' || this.type === 'star')) {{
                     let progress = Math.min(1.0, this.touchTimer / SUCCESS_STEPS);
                     ctx.beginPath();
@@ -852,7 +863,15 @@ html_code = f"""
                 }}
 
                 item.isOnRope = anyCollision;
-                if (item.isOnRope) item.hasTouchedRope = true;
+                if (item.isOnRope) {{
+                    item.hasTouchedRope = true;
+                    // 처음 닿는 순간 로프 경사각으로 각도를 고정한다.
+                    // lastBest.tx/ty 는 접선 단위벡터이므로 atan2로 경사각을 구할 수 있다.
+                    if (!item.angleLocked) {{
+                        item.angle = Math.atan2(lastBest.ty, lastBest.tx);
+                        item.angleLocked = true;
+                    }}
+                }}
             }});
 
             // 4. 아이템 2초 안착 / 폭발 / 낙하 판정
