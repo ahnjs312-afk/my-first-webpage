@@ -434,7 +434,8 @@ html_code = f"""
         // ---- 충돌 처리 관련 상수 ----
         const SQUEEZE_ITERATIONS = 6;   // 양쪽 세그먼트에 '끼는' 상황을 풀기 위한 반복 보정 횟수
         const PIN_RADIUS = 12;          // 축(핀)의 충돌 반지름 — 화면에 그려지는 원 크기와 동일
-        const CONTACT_SKIN = 3;         // 접촉 유지용 여유 두께
+        const CONTACT_SKIN = 3;         // 접촉 유지용 기본 여유 두께
+        const CONTACT_SKIN_BOTTOM = 14; // 로프 아랫면 추가 두께 (보이는 것보다 두껍게)
         const RESTITUTION = 0.15;       // 반발 계수 (0에 가까울수록 덜 튐)
         const SLIDE_FACTOR = 0.5;       // 경사면을 따라 미끄러지는 정도
         const ROPE_PUSH = 1.2;          // 아이템이 로프를 눌러 들어가는 총량 (반복 횟수로 나눠서 적용)
@@ -881,24 +882,21 @@ html_code = f"""
                         if (res.dist < item.radius + CONTACT_SKIN && (!best || res.dist < best.dist)) {{
                             let segDx = ropeP2.x - ropeP1.x, segDy = ropeP2.y - ropeP1.y;
                             let segLen = Math.hypot(segDx, segDy) || 1;
-                            let tx = segDx / segLen; // 세그먼트 접선 방향(정규화)
+                            let tx = segDx / segLen;
                             let ty = segDy / segLen;
-
-                            // [수정] 밀어낼 방향은 "아이템이 원래 있던 쪽"으로 결정한다.
-                            // 기존처럼 최근접점 방향(res.dx/res.dy)을 쓰면, 이미 로프를 지나쳐버린
-                            // 경우 최근접점이 반대편에 생겨서 아이템을 관통한 쪽으로 확정시켜버렸다.
-                            // 이것이 "로프를 뚫는" 현상의 직접적인 원인.
-                            let nx0 = -ty, ny0 = tx; // 접선을 90도 회전한 법선
+                            let nx0 = -ty, ny0 = tx;
                             let refX = pathStart.x - ropeP1.x;
                             let refY = pathStart.y - ropeP1.y;
                             let side = (refX * nx0 + refY * ny0) >= 0 ? 1 : -1;
+                            let nx = nx0 * side, ny = ny0 * side;
 
-                            best = {{
-                                dist: res.dist, t: res.t,
-                                nx: nx0 * side, ny: ny0 * side, tx, ty,
-                                p1: ropeP1, p2: ropeP2,
-                                contactX: res.c2x, contactY: res.c2y
-                            }};
+                            // 아랫면(ny > 0 = 아래에서 올라오는 방향)일 때 두께를 추가로 검사
+                            let skin = (ny > 0) ? CONTACT_SKIN + CONTACT_SKIN_BOTTOM : CONTACT_SKIN;
+                            if (res.dist >= item.radius + skin) continue;
+
+                            best = {{ dist: res.dist, t: res.t, nx, ny, tx, ty,
+                                      p1: ropeP1, p2: ropeP2,
+                                      contactX: res.c2x, contactY: res.c2y, skin }};
                         }}
                     }}
 
@@ -908,8 +906,8 @@ html_code = f"""
                     lastBest = best;
 
                     // 로프 접점에서 정확히 (radius + skin)만큼, 원래 있던 쪽으로 떨어진 지점에 배치
-                    item.x = best.contactX + best.nx * (item.radius + CONTACT_SKIN);
-                    item.y = best.contactY + best.ny * (item.radius + CONTACT_SKIN);
+                    item.x = best.contactX + best.nx * (item.radius + best.skin);
+                    item.y = best.contactY + best.ny * (item.radius + best.skin);
 
                     // 접촉한 세그먼트도 눌리도록 반응 (반복 횟수로 나눠 총량을 일정하게 유지)
                     let push = ROPE_PUSH / SQUEEZE_ITERATIONS;
