@@ -17,8 +17,8 @@ _bg_layers = [
     _img_b64("assets/3.png", "image/png"),  # 앞 구름 — 빠르게
     _img_b64("assets/4.png", "image/png"),  # 투명 레이어 — 가장 앞
 ]
-_apple_src   = _img_b64("assets/Apple.png",   "image/png")
-_crystal_src = _img_b64("assets/Crystal.png", "image/png")
+_apple_src   = _img_b64("assets/Donut.png",  "image/png")
+_crystal_src = _img_b64("assets/Burger.png", "image/png")
 _bomb_src    = _img_b64("assets/Bomb.png",    "image/png")
 
 html_code = f"""
