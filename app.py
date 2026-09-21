@@ -1,25 +1,29 @@
+import base64 as _b64
+from pathlib import Path
+
 import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 st.title("🪢 Rope Balance Catcher (2초 안착 물리 캐치 게임)")
-st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 사과가 로프 좌우 범위 안에서 2초 동안 머무르게 하면 점수를 얻어요! (먼저 게임 화면을 한 번 클릭해주세요)")
+st.caption("💡 **조작법**: [좌측 축] `A` / `D` | [우측 축] `⬅️` / `➡️` | 아이템이 로프 좌우 범위 안에서 2초 동안 머무르게 하면 점수를 얻어요! (먼저 게임 화면을 한 번 클릭해주세요)")
 
-import base64 as _b64
+_ASSETS_DIR = Path(__file__).parent / "assets"
 
-def _img_b64(path, mime):
-    data = open(path, "rb").read()
+def _img_b64(filename, mime):
+    with open(_ASSETS_DIR / filename, "rb") as f:
+        data = f.read()
     return f"data:{mime};base64,{_b64.b64encode(data).decode()}"
 
 _bg_layers = [
-    _img_b64("assets/1.png", "image/png"),  # 하늘 배경 — 가장 뒤, 고정
-    _img_b64("assets/2.png", "image/png"),  # 뒤 구름 — 느리게
-    _img_b64("assets/3.png", "image/png"),  # 앞 구름 — 빠르게
-    _img_b64("assets/4.png", "image/png"),  # 투명 레이어 — 가장 앞
+    _img_b64("1.png", "image/png"),  # 하늘 배경 — 가장 뒤, 고정
+    _img_b64("2.png", "image/png"),  # 뒤 구름 — 느리게
+    _img_b64("3.png", "image/png"),  # 앞 구름 — 빠르게
+    _img_b64("4.png", "image/png"),  # 투명 레이어 — 가장 앞
 ]
-_apple_src   = _img_b64("assets/Donut.png",  "image/png")
-_crystal_src = _img_b64("assets/Burger.png", "image/png")
-_bomb_src    = _img_b64("assets/Bomb.png",    "image/png")
+_donut_src  = _img_b64("Donut.png",  "image/png")
+_burger_src = _img_b64("Burger.png", "image/png")
+_bomb_src   = _img_b64("Bomb.png",   "image/png")
 
 html_code = f"""
 <!DOCTYPE html>
@@ -321,11 +325,11 @@ html_code = f"""
                     <div>
                         <div class="howto-section-label">Items</div>
                         <div class="howto-row">
-                            <span>Apple — hold 2s</span>
+                            <span>Donut — hold 2s</span>
                             <span class="badge badge-green">+15</span>
                         </div>
                         <div class="howto-row">
-                            <span>Crystal — hold 2s</span>
+                            <span>Burger — hold 2s</span>
                             <span class="badge badge-yellow">+35</span>
                         </div>
                         <div class="howto-row">
@@ -363,8 +367,8 @@ html_code = f"""
                             <span style="color:var(--text-muted);font-size:12px;">Shows 2s progress</span>
                         </div>
                         <div class="howto-row">
-                            <span>Crystal scores</span>
-                            <span style="color:var(--text-muted);font-size:12px;">2× more than apple</span>
+                            <span>Burger scores</span>
+                            <span style="color:var(--text-muted);font-size:12px;">2× more than donut</span>
                         </div>
                     </div>
 
@@ -386,10 +390,10 @@ html_code = f"""
         ctx.imageSmoothingEnabled = false;
 
         // ---- 스프라이트 이미지 ----
-        // 사과·크리스탈은 개별 PNG, 폭탄은 이모지 폴백 유지
-        const imgApple   = new Image(); imgApple.src   = "{_apple_src}";
-        const imgCrystal = new Image(); imgCrystal.src = "{_crystal_src}";
-        const imgBomb    = new Image(); imgBomb.src    = "{_bomb_src}";
+        // 도넛·버거는 개별 PNG, 폭탄은 이모지 폴백 유지
+        const imgDonut  = new Image(); imgDonut.src  = "{_donut_src}";
+        const imgBurger = new Image(); imgBurger.src = "{_burger_src}";
+        const imgBomb   = new Image(); imgBomb.src   = "{_bomb_src}";
 
         // 캔버스에 포커스를 줘야 iframe 안에서 키 입력이 확실히 잡힘
         canvas.addEventListener('click', () => canvas.focus());
@@ -636,10 +640,10 @@ html_code = f"""
 
                 // 중심 기준으로 그리기 (translate 후 -radius 오프셋)
                 const half = -this.radius;
-                if (this.type === 'apple' && imgApple.complete && imgApple.naturalWidth > 0) {{
-                    ctx.drawImage(imgApple, half, half, d, d);
-                }} else if (this.type === 'star' && imgCrystal.complete && imgCrystal.naturalWidth > 0) {{
-                    ctx.drawImage(imgCrystal, half, half, d, d);
+                if (this.type === 'apple' && imgDonut.complete && imgDonut.naturalWidth > 0) {{
+                    ctx.drawImage(imgDonut, half, half, d, d);
+                }} else if (this.type === 'star' && imgBurger.complete && imgBurger.naturalWidth > 0) {{
+                    ctx.drawImage(imgBurger, half, half, d, d);
                 }} else if (this.type === 'bomb' && imgBomb.complete && imgBomb.naturalWidth > 0) {{
                     ctx.drawImage(imgBomb, half, half, d, d);
                 }} else {{
@@ -647,8 +651,8 @@ html_code = f"""
                     ctx.font = "18px sans-serif";
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
-                    ctx.fillText(this.type === 'apple' ? '🍎'
-                               : this.type === 'star'  ? '⭐' : '💣',
+                    ctx.fillText(this.type === 'apple' ? '🍩'
+                               : this.type === 'star'  ? '🍔' : '💣',
                                  0, 0);
                 }}
 
@@ -1039,6 +1043,15 @@ html_code = f"""
             }});
 
             if (lives <= 0) isGameOver = true;
+
+            // Game Over — 로비 씬으로 복귀 (상태 전이는 여기서, 그리기는 draw()에서만)
+            if (isGameOver) {{
+                document.getElementById('startBtn').textContent = 'Play again';
+                showScene('scene-lobby');
+                document.getElementById('hint').style.visibility = 'hidden';
+                isLobby = true;
+                isGameOver = false;
+            }}
         }}
 
         // ---- 배경 레이어 (패럴랙스) ----
@@ -1170,15 +1183,6 @@ html_code = f"""
 
             // 낙하 물체 그리기
             fallingItems.forEach(item => item.draw());
-
-            // Game Over — 로비 씬으로 복귀
-            if (isGameOver) {{
-                document.getElementById('startBtn').textContent = 'Play again';
-                showScene('scene-lobby');
-                document.getElementById('hint').style.visibility = 'hidden';
-                isLobby = true;
-                isGameOver = false;
-            }}
         }}
 
         // ---- 고정 타임스텝 메인 루프 ----
